@@ -336,9 +336,34 @@ const fixtures = () => db.fixtures.filter(f=>f.teamId===team().id);
 const fixture = id => db.fixtures.find(f=>f.id===id);
 function opponentNames(){db.opponents=db.opponents||[];const m=new Map();db.opponents.filter(o=>o.teamId===team().id&&!o.archived).forEach(o=>m.set(o.name.toLowerCase(),o.name));fixtures().forEach(f=>{const n=(f.opponent||'').trim();if(n&&!db.opponents.some(o=>o.teamId===team().id&&o.archived&&o.name.toLowerCase()===n.toLowerCase()))m.set(n.toLowerCase(),n)});return [...m.values()].sort((a,b)=>a.localeCompare(b));}
 function rememberOpponent(n){n=n.trim();db.opponents=db.opponents||[];if(n&&!db.opponents.some(o=>o.teamId===team().id&&o.name.toLowerCase()===n.toLowerCase()))db.opponents.push({id:uid(),teamId:team().id,name:n});}
-function vOpponents(){return `<div class="stack"><div class="row between"><h2>Opponents A–Z</h2><button class="btn primary" data-a="addOpponent">+ Add new</button></div><p class="small muted">Rename opponents to correct past fixtures. Remove hides them from future selection, but keeps results.</p><div class="card"><div class="list">${opponentNames().map(n=>`<div class="li"><div class="main"><b>${esc(n)}</b><div class="small muted">${fixtures().filter(f=>f.opponent.toLowerCase()===n.toLowerCase()&&f.status==='played').length} results</div></div><button class="btn sm" data-a="editOpponent" data-name="${esc(n)}">Manage</button></div>`).join('')||'<p class="muted">No opponents yet.</p>'}</div></div></div>`;}
+function vOpponents(){return `<div class="stack"><div class="row between"><h2>Opponents A–Z</h2><button class="btn primary" data-a="addOpponent">+ Add new</button></div><p class="small muted">Rename opponents to correct past fixtures. Remove hides them from future selection, but keeps results.</p><div class="card"><div class="list">${opponentNames().map(n=>`<div class="li"><div class="main"><b>${esc(n)}</b><div class="small muted">${fixtures().filter(f=>f.opponent.toLowerCase()===n.toLowerCase()&&f.status==='played').length} results</div></div><button class="btn sm" data-a="openOpponent" data-name="${esc(n)}">View profile</button></div>`).join('')||'<p class="muted">No opponents yet.</p>'}</div></div></div>`;}
+function opponentRecord(n){return (db.opponents||[]).find(o=>o.teamId===team().id&&o.name.toLowerCase()===n.toLowerCase());}
+function vOpponentDetail(){
+ const name=ui.opponentName||'',o=opponentRecord(name)||{},matches=fixtures().filter(f=>f.opponent.toLowerCase()===name.toLowerCase()&&f.status==='played'&&f.score).sort((a,b)=>b.date.localeCompare(a.date));
+ const W=matches.filter(f=>result(f)==='W').length,D=matches.filter(f=>result(f)==='D').length,L=matches.filter(f=>result(f)==='L').length,GF=matches.reduce((a,f)=>a+f.score.us,0),GA=matches.reduce((a,f)=>a+f.score.them,0);
+ return `<div class="stack"><div class="row between"><button class="btn ghost sm" data-a="nav" data-v="opponents">‹ Opponents</button><button class="btn primary sm" data-a="editOpponent" data-name="${esc(name)}">Edit details</button></div>
+ <h2>${esc(name)}</h2>
+ <div class="card stack"><div class="eyebrow">Club details</div>
+ <div><b>Ground address</b><div class="small muted" style="white-space:pre-wrap">${esc(o.address||'Not recorded')}</div></div>
+ <div><b>Coach</b><div class="small muted">${esc(o.coach||'Not recorded')}</div></div>
+ <div><b>Contact number</b><div class="small">${o.phone?`<a href="tel:${esc(o.phone.replace(/[^+0-9]/g,''))}">${esc(o.phone)}</a>`:'<span class="muted">Not recorded</span>'}</div></div>
+ <div><b>Club notes</b><div class="small muted" style="white-space:pre-wrap">${esc(o.notes||'Not recorded')}</div></div></div>
+ <div class="card stack"><div class="eyebrow">Head-to-head record</div><div class="kpis num"><div><div class="stat-n">${matches.length}</div><div class="small muted">Played</div></div><div><div class="stat-n">${W}-${D}-${L}</div><div class="small muted">W-D-L</div></div><div><div class="stat-n">${GF}:${GA}</div><div class="small muted">Goals</div></div><div><div class="stat-n">${GF-GA>0?'+':''}${GF-GA}</div><div class="small muted">Goal diff</div></div></div></div>
+ <div class="card"><div class="eyebrow">Historical results & match notes</div><div class="list">${matches.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><div class="main"><b>${fmtDate(f.date)}</b><div class="small muted">${esc(f.competition||'')} · ${f.homeAway==='H'?'Home':f.homeAway==='A'?'Away':'Neutral'}</div>${f.coachingNotes&&(f.coachingNotes.good||f.coachingNotes.improve||f.coachingNotes.training)?'<div class="small muted">Coaching notes available</div>':''}</div><b class="num">${f.score.us}–${f.score.them}</b><span class="muted">›</span></button>`).join('')||'<p class="small muted">No completed matches recorded against this opponent.</p>'}</div></div></div>`;
+}
 function vHistory(){const all=fixtures().filter(f=>f.status==='played'&&f.score).sort((a,b)=>b.date.localeCompare(a.date));const years=[...new Set(all.map(f=>season(f.date)))].sort().reverse(),ss=ui.historySeason||'',oo=ui.historyOpponent||'';const found=all.filter(f=>(!ss||season(f.date)===ss)&&(!oo||f.opponent===oo));return `<div class="stack"><h2>Match history</h2><div class="grid2"><select class="input" data-a="historyFilter" data-k="season"><option value="">All seasons</option>${years.map(y=>`<option ${ss===y?'selected':''}>${esc(y)}</option>`).join('')}</select><select class="input" data-a="historyFilter" data-k="opponent"><option value="">All opponents</option>${[...new Set(all.map(f=>f.opponent))].sort((a,b)=>a.localeCompare(b)).map(n=>`<option ${oo===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div><div class="card"><div class="eyebrow">${found.length} completed matches</div><div class="list">${found.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><div class="main"><b>${esc(f.opponent)}</b><div class="small muted">${fmtDate(f.date)} · ${esc(f.competition||'')} · ${f.homeAway==='H'?'Home':f.homeAway==='A'?'Away':'Neutral'}</div></div><b class="num">${f.score.us}–${f.score.them}</b><span class="muted">›</span></button>`).join('')||'<p class="muted">No results found.</p>'}</div></div></div>`;}
-function sheetOpponent(){const n=ui.sheet.name||'';return `<h2>${n?'Manage opponent':'Add new opponent'}</h2><label class="f">Opponent name<input class="input" id="oppName" value="${esc(n)}"></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveOpponent">Save</button></div>${n?'<button class="btn danger" data-a="archiveOpponent">Remove from selection list</button>':''}<p class="small muted">Renaming updates historical fixtures. Removing preserves historical results.</p>`;}
+function sheetOpponent(){
+ const n=ui.sheet.name||'',o=opponentRecord(n)||{};
+ return `<h2>${n?'Edit club details':'Add new opponent'}</h2>
+ <label class="f">Club name<input class="input" id="oppName" value="${esc(n)}"></label>
+ <label class="f">Ground address<textarea class="input" id="oppAddress" rows="3" placeholder="Ground name, street, town and postcode">${esc(o.address||'')}</textarea></label>
+ <label class="f">Coach name<input class="input" id="oppCoach" value="${esc(o.coach||'')}"></label>
+ <label class="f">Coach contact number<input class="input" id="oppPhone" type="tel" value="${esc(o.phone||'')}"></label>
+ <label class="f">Club notes<textarea class="input" id="oppNotes" rows="3" placeholder="Parking, facilities, previous observations...">${esc(o.notes||'')}</textarea></label>
+ <div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveOpponent">Save details</button></div>
+ ${n?'<button class="btn danger" data-a="archiveOpponent">Remove from selection list</button>':''}
+ <p class="small muted">Renaming updates historical fixtures. Removing preserves historical results.</p>`;
+}
 function sheetCoachingNotes(){const f=fixture(ui.sheet.id),n=f.coachingNotes||{};return `<h2>Coaching notes · ${esc(f.opponent)}</h2><label class="f">What went well<textarea class="input" id="noteGood" rows="3">${esc(n.good||'')}</textarea></label><label class="f">What needs improving<textarea class="input" id="noteImprove" rows="3">${esc(n.improve||'')}</textarea></label><label class="f">Focus for next training<textarea class="input" id="noteTraining" rows="3">${esc(n.training||'')}</textarea></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveNotes">Save notes</button></div>`;}
 
 const fitIds = fx => fx.available.filter(id=>player(id)&&!(fx.injured||[]).includes(id));
@@ -586,12 +611,13 @@ function render(){
   else if(ui.view==='squad') body=vSquad();
   else if(ui.view==='fixtures') body=vFixtures();
   else if(ui.view==='opponents') body=vOpponents();
+  else if(ui.view==='opponentDetail') body=vOpponentDetail();
   else if(ui.view==='history') body=vHistory();
   else if(ui.view==='fixture') body=vFixture();
   else if(ui.view==='stats') body=vStats();
   else if(ui.view==='team') body=vTeam();
   const tabs=[['home','Home'],['squad','Squad'],['fixtures','Fixtures'],['stats','Stats'],['team','Team']];
-  const active = ui.view==='fixture'?'fixtures':ui.view;
+  const active = ['fixture','opponents','opponentDetail','history'].includes(ui.view)?'fixtures':ui.view;
   app.innerHTML = `
   <header class="bar"><div class="wrap">${badgeHtml(t)}<div class="grow"><div class="tname">${esc(t.name)}</div><div class="brand">TouchXI</div></div><img class="applogo" src="${APP_LOGO}" alt="TouchXI"></div></header>
   <main class="wrap">${body}</main>
@@ -1062,7 +1088,20 @@ const A = {
   addFx(){ ui.sheet={k:'fixture'}; ui.confirm=null; },
   addOpponent(){ui.sheet={k:'opponent'};},
   editOpponent(d){ui.sheet={k:'opponent',name:d.name};},
-  saveOpponent(){const n=val('oppName').trim(),old=ui.sheet.name||'';if(!n){toast('Enter opponent name');return 'keep';}if(opponentNames().some(x=>x.toLowerCase()===n.toLowerCase()&&x.toLowerCase()!==old.toLowerCase())){toast('Opponent already exists');return 'keep';}db.opponents=db.opponents||[];if(old){fixtures().filter(f=>f.opponent.toLowerCase()===old.toLowerCase()).forEach(f=>f.opponent=n);db.opponents.filter(o=>o.teamId===team().id&&o.name.toLowerCase()===old.toLowerCase()).forEach(o=>o.name=n);}rememberOpponent(n);ui.sheet=null;toast('Opponent saved');},
+  openOpponent(d){ui.opponentName=d.name;ui.view='opponentDetail';window.scrollTo(0,0);},
+  saveOpponent(){
+    const n=val('oppName').trim(),old=ui.sheet.name||'';
+    if(!n){toast('Enter opponent name');return 'keep';}
+    if(opponentNames().some(x=>x.toLowerCase()===n.toLowerCase()&&x.toLowerCase()!==old.toLowerCase())){toast('Opponent already exists');return 'keep';}
+    db.opponents=db.opponents||[];
+    if(old){
+      fixtures().filter(f=>f.opponent.toLowerCase()===old.toLowerCase()).forEach(f=>f.opponent=n);
+      db.opponents.filter(o=>o.teamId===team().id&&o.name.toLowerCase()===old.toLowerCase()).forEach(o=>o.name=n);
+    }
+    rememberOpponent(n);
+    const o=opponentRecord(n);Object.assign(o,{address:val('oppAddress').trim(),coach:val('oppCoach').trim(),phone:val('oppPhone').trim(),notes:val('oppNotes').trim(),archived:false});
+    ui.opponentName=n;ui.view='opponentDetail';ui.sheet=null;toast('Club details saved');
+  },
   archiveOpponent(){const n=ui.sheet.name;db.opponents=db.opponents||[];let o=db.opponents.find(o=>o.teamId===team().id&&o.name.toLowerCase()===n.toLowerCase());if(!o){o={id:uid(),teamId:team().id,name:n};db.opponents.push(o);}o.archived=true;ui.sheet=null;toast('Opponent hidden; results kept');},
   editNotes(d){ui.sheet={k:'notes',id:d.id};},
   saveNotes(){const f=fixture(ui.sheet.id);f.coachingNotes={good:val('noteGood'),improve:val('noteImprove'),training:val('noteTraining')};ui.sheet=null;toast('Coaching notes saved');},
