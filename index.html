@@ -601,9 +601,9 @@ function computeStats(filter){
   if(!filter.season&&!filter.comp) Object.values(ps).forEach(r=>{const b=r.p.openingStats||{};for(const k of ['apps','goals','assists','motm'])r[k]+=Math.max(0,+b[k]||0);});
   const T={P:0,W:0,D:0,L:0,GF:0,GA:0};
   fxs.forEach(f=>{ T.P++; T[result(f)]++; T.GF+=f.score.us; T.GA+=f.score.them;
-    if(f.motm&&ps[f.motm]) ps[f.motm].motm++; if(f.star&&ps[f.star]) ps[f.star].star++;
+    if(!f.imported&&f.motm&&ps[f.motm]) ps[f.motm].motm++; if(f.star&&ps[f.star]) ps[f.star].star++;
     const pk=f.pitch||'Not recorded', pt=pitch[pk]=pitch[pk]||{P:0,W:0,D:0,L:0,GF:0,GA:0}; pt.P++; pt[result(f)]++; pt.GF+=f.score.us; pt.GA+=f.score.them;
-    (f.scorers||[]).forEach(s=>{ if(ps[s.pid]) ps[s.pid].goals++; if(s.assist&&ps[s.assist]) ps[s.assist].assists++; });
+    (f.imported?[]:(f.scorers||[])).forEach(s=>{ if(ps[s.pid]) ps[s.pid].goals++; if(s.assist&&ps[s.assist]) ps[s.assist].assists++; });
     if(f.match){ const seen={};
       f.match.stints.forEach(s=>{ const r=ps[s.pid]; if(!r) return; r.min+=(s.to-s.from)/60; r.pos[s.code]=(r.pos[s.code]||0)+(s.to-s.from); if(!seen[s.pid]){seen[s.pid]=s.from<1?'start':'sub';} });
       Object.entries(seen).forEach(([id,k])=>{ ps[id].apps++; if(k==='start') ps[id].starts++; else ps[id].subs++; });
