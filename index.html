@@ -1364,10 +1364,44 @@ document.addEventListener('change',async e=>{if(e.target.id==='csvFile'&&e.targe
 document.addEventListener('input',e=>{ if(e.target.dataset&&(e.target.dataset.a==='mf'||e.target.dataset.a==='gr')){ draftField(e.target); return; } if(e.target.dataset&&e.target.dataset.a==='color'){ team().colors[e.target.dataset.k]=e.target.value; applyTheme(); } });
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'){ if(ui.view==='match'){ keepAwake(); renderMatch(); } } });
 
+async function installHistoricalResults(){
+  if(db.historical2026Installed) return;
+  try{
+    const response=await fetch('./historical-results.csv',{cache:'no-store'});
+    if(!response.ok) return;
+    const parsed=previewCSV(await response.text());
+    if(parsed.rows.length!==149){console.warn('Historical data incomplete',parsed.rows.length,parsed.errors);return;}
+    const t=team();
+    const norm=s=>String(s||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    let added=0,merged=0;
+    for(const r of parsed.rows){
+      let f=fixtures().find(x=>x.status==='played'&&x.date===r.date&&norm(x.opponent)===norm(r.opponent)&&x.score?.us===r.us&&x.score?.them===r.them);
+      if(!f){
+        f={id:uid(),teamId:t.id,date:r.date,time:'',opponent:r.opponent,venue:'',homeAway:r.homeAway,competition:r.competition||'',format:r.format||t.format,periods:4,periodMins:15,windows:1,available:[],prefs:{},formationId:null,plan:null,match:null,score:{us:r.us,them:r.them},scorers:[],status:'played',imported:true};
+        db.fixtures.push(f);added++;
+      }else merged++;
+      f.season=f.season||r.season;f.ageGroup=f.ageGroup||r.ageGroup;f.notes=f.notes||r.notes;f.potmName=f.potmName||r.potm;
+      if(r.format)f.format=r.format;
+      if(!(f.scorers||[]).length&&r.scorerText){
+        f.scorers=[];
+        for(const entry of r.scorerText.split('|')){
+          const m=entry.trim().match(/^(.+?):(\d+)$/);if(!m)continue;
+          const name=m[1].trim();let p=db.players.find(x=>x.teamId===t.id&&norm(x.name)===norm(name));
+          if(!p){p={id:uid(),teamId:t.id,name,number:null,pos:[],notes:'',active:false};db.players.push(p);}
+          for(let n=0;n<Math.min(+m[2],30);n++)f.scorers.push({pid:p.id,assist:null});
+        }
+      }
+      rememberOpponent(r.opponent);
+    }
+    db.historical2026Installed=true;save();render();
+    toast('Historical results updated: '+added+' added, '+merged+' matched');
+  }catch(e){console.warn('Historical import not yet available',e);}
+}
 load();
 if(ui.view==='match') ui.view='fixture';
 render();
 startTick();
+installHistoricalResults();
 </script>
 
 <script>
