@@ -334,6 +334,13 @@ const squad = () => db.players.filter(p=>p.teamId===team().id).sort((a,b)=>(a.nu
 const player = id => db.players.find(p=>p.id===id);
 const fixtures = () => db.fixtures.filter(f=>f.teamId===team().id);
 const fixture = id => db.fixtures.find(f=>f.id===id);
+function opponentNames(){db.opponents=db.opponents||[];const m=new Map();db.opponents.filter(o=>o.teamId===team().id&&!o.archived).forEach(o=>m.set(o.name.toLowerCase(),o.name));fixtures().forEach(f=>{const n=(f.opponent||'').trim();if(n&&!db.opponents.some(o=>o.teamId===team().id&&o.archived&&o.name.toLowerCase()===n.toLowerCase()))m.set(n.toLowerCase(),n)});return [...m.values()].sort((a,b)=>a.localeCompare(b));}
+function rememberOpponent(n){n=n.trim();db.opponents=db.opponents||[];if(n&&!db.opponents.some(o=>o.teamId===team().id&&o.name.toLowerCase()===n.toLowerCase()))db.opponents.push({id:uid(),teamId:team().id,name:n});}
+function vOpponents(){return `<div class="stack"><div class="row between"><h2>Opponents A–Z</h2><button class="btn primary" data-a="addOpponent">+ Add new</button></div><p class="small muted">Rename opponents to correct past fixtures. Remove hides them from future selection, but keeps results.</p><div class="card"><div class="list">${opponentNames().map(n=>`<div class="li"><div class="main"><b>${esc(n)}</b><div class="small muted">${fixtures().filter(f=>f.opponent.toLowerCase()===n.toLowerCase()&&f.status==='played').length} results</div></div><button class="btn sm" data-a="editOpponent" data-name="${esc(n)}">Manage</button></div>`).join('')||'<p class="muted">No opponents yet.</p>'}</div></div></div>`;}
+function vHistory(){const all=fixtures().filter(f=>f.status==='played'&&f.score).sort((a,b)=>b.date.localeCompare(a.date));const years=[...new Set(all.map(f=>season(f.date)))].sort().reverse(),ss=ui.historySeason||'',oo=ui.historyOpponent||'';const found=all.filter(f=>(!ss||season(f.date)===ss)&&(!oo||f.opponent===oo));return `<div class="stack"><h2>Match history</h2><div class="grid2"><select class="input" data-a="historyFilter" data-k="season"><option value="">All seasons</option>${years.map(y=>`<option ${ss===y?'selected':''}>${esc(y)}</option>`).join('')}</select><select class="input" data-a="historyFilter" data-k="opponent"><option value="">All opponents</option>${[...new Set(all.map(f=>f.opponent))].sort((a,b)=>a.localeCompare(b)).map(n=>`<option ${oo===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div><div class="card"><div class="eyebrow">${found.length} completed matches</div><div class="list">${found.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><div class="main"><b>${esc(f.opponent)}</b><div class="small muted">${fmtDate(f.date)} · ${esc(f.competition||'')} · ${f.homeAway==='H'?'Home':f.homeAway==='A'?'Away':'Neutral'}</div></div><b class="num">${f.score.us}–${f.score.them}</b><span class="muted">›</span></button>`).join('')||'<p class="muted">No results found.</p>'}</div></div></div>`;}
+function sheetOpponent(){const n=ui.sheet.name||'';return `<h2>${n?'Manage opponent':'Add new opponent'}</h2><label class="f">Opponent name<input class="input" id="oppName" value="${esc(n)}"></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveOpponent">Save</button></div>${n?'<button class="btn danger" data-a="archiveOpponent">Remove from selection list</button>':''}<p class="small muted">Renaming updates historical fixtures. Removing preserves historical results.</p>`;}
+function sheetCoachingNotes(){const f=fixture(ui.sheet.id),n=f.coachingNotes||{};return `<h2>Coaching notes · ${esc(f.opponent)}</h2><label class="f">What went well<textarea class="input" id="noteGood" rows="3">${esc(n.good||'')}</textarea></label><label class="f">What needs improving<textarea class="input" id="noteImprove" rows="3">${esc(n.improve||'')}</textarea></label><label class="f">Focus for next training<textarea class="input" id="noteTraining" rows="3">${esc(n.training||'')}</textarea></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveNotes">Save notes</button></div>`;}
+
 const fitIds = fx => fx.available.filter(id=>player(id)&&!(fx.injured||[]).includes(id));
 
 /* ============================ Helpers ============================ */
@@ -578,6 +585,8 @@ function render(){
   if(ui.view==='home') body=vHome();
   else if(ui.view==='squad') body=vSquad();
   else if(ui.view==='fixtures') body=vFixtures();
+  else if(ui.view==='opponents') body=vOpponents();
+  else if(ui.view==='history') body=vHistory();
   else if(ui.view==='fixture') body=vFixture();
   else if(ui.view==='stats') body=vStats();
   else if(ui.view==='team') body=vTeam();
@@ -656,7 +665,7 @@ function vFixtures(){
   const done=fxs.filter(f=>f.status==='played').sort((a,b)=>b.date.localeCompare(a.date));
   return `<div class="stack">
    <div class="row between"><h2>Fixtures</h2><div class="row"><button class="btn" data-a="importSheet">Import results</button><button class="btn primary" data-a="addFx">Add</button></div></div>
-   <div class="card"><div class="eyebrow">Upcoming</div><div class="list">${up.map(fxRow).join('')||'<p class="muted small">Nothing scheduled.</p>'}</div></div>
+   <div class="grid2"><button class="btn" data-a="nav" data-v="opponents">Manage opponents</button><button class="btn" data-a="nav" data-v="history">Match history</button></div><div class="card"><div class="eyebrow">Upcoming</div><div class="list">${up.map(fxRow).join('')||'<p class="muted small">Nothing scheduled.</p>'}</div></div>
    <div class="card"><div class="eyebrow">Results</div><div class="list">${done.map(fxRow).join('')||'<p class="muted small">No results yet.</p>'}</div></div>
   </div>`;
 }
@@ -664,7 +673,7 @@ function sheetFixture(id){
   const t=team(); const f=id?fixture(id):{date:new Date().toISOString().slice(0,10),time:'10:00',opponent:'',venue:'',homeAway:'H',competition:'League',format:t.format,periods:t.periods,periodMins:t.periodMins,windows:t.windows||1};
   return `<h2>${id?'Edit fixture':'New fixture'}</h2>
    <label class="f">Opponent<input class="input" id="fOpp" value="${esc(f.opponent)}" list="oppList" autocomplete="off"></label>
-   <datalist id="oppList">${[...new Set(fixtures().map(x=>x.opponent))].map(o=>`<option value="${esc(o)}">`).join('')}</datalist>
+   <datalist id="oppList">${opponentNames().map(o=>`<option value="${esc(o)}">`).join('')}</datalist><p class="small muted" style="margin:0">Choose a saved opponent or type a new name.</p>
    <div class="grid2"><label class="f">Date<input class="input" type="date" id="fDate" value="${esc(f.date)}"></label><label class="f">Kick-off<input class="input" type="time" id="fTime" value="${esc(f.time)}"></label></div>
    <div class="grid2"><label class="f">Home / away<select class="input" id="fHA"><option value="H" ${f.homeAway==='H'?'selected':''}>Home</option><option value="A" ${f.homeAway==='A'?'selected':''}>Away</option><option value="N" ${f.homeAway==='N'?'selected':''}>Neutral</option></select></label><label class="f">Competition<input class="input" id="fComp" value="${esc(f.competition)}" list="compList"></label></div>
    <datalist id="compList">${[...new Set(['League','Cup','Friendly','Tournament',...fixtures().map(x=>x.competition).filter(Boolean)])].map(o=>`<option value="${esc(o)}">`).join('')}</datalist>
@@ -744,10 +753,12 @@ function vPlayed(fx){
   const goals=(fx.scorers||[]);
   const mins={}; if(m) m.stints.forEach(s=>mins[s.pid]=(mins[s.pid]||0)+(s.to-s.from));
   return `<div class="stack">
-    <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="fixtures">‹ Fixtures</button><div class="row" style="gap:6px"><button class="btn sm" data-a="manualResult" data-id="${fx.id}">Match report</button><button class="btn sm" data-a="editFx" data-id="${fx.id}">Details</button></div></div>
+    <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="history">‹ History</button><div class="row" style="gap:6px"><button class="btn sm" data-a="manualResult" data-id="${fx.id}">Match report</button><button class="btn sm" data-a="editFx" data-id="${fx.id}">Details</button></div></div>
     <div class="card" style="text-align:center"><div class="eyebrow">${fmtDate(fx.date)} · ${esc(fx.competition||'')}</div>
      <div class="sline" style="margin-top:10px"><div class="t r">${esc(team().name)}</div><div class="stat-n num" style="font-size:44px">${fx.score.us}–${fx.score.them}</div><div class="t" style="text-align:left">${esc(fx.opponent)}</div></div>
      <div style="margin-top:8px"><span class="pill ${r}">${{W:'Win',D:'Draw',L:'Defeat'}[r]}</span> ${fx.imported?'<span class="pill ex">Imported</span>':''}</div></div>
+    <div class="card"><div class="row between"><div class="eyebrow">Coaching notes</div><button class="btn sm" data-a="editNotes" data-id="${fx.id}">Edit notes</button></div>
+    ${[['What went well',fx.coachingNotes?.good],['What needs improving',fx.coachingNotes?.improve],['Next training focus',fx.coachingNotes?.training]].map(([k,v])=>v?`<p class="small"><b>${k}</b><br>${esc(v).replace(/\\n/g,'<br>')}</p>`:'').join('')||'<p class="small muted">No coaching notes recorded yet.</p>'}</div>
     <div class="card"><div class="row between"><div class="eyebrow">Match report</div><button class="btn sm" data-a="manualResult" data-id="${fx.id}">Edit</button></div>
      <div class="grid3" style="margin-top:10px">
       <div><div class="small muted">Pitch</div><b>${esc(fx.pitch||'Not set')}</b></div>
@@ -953,6 +964,8 @@ function renderSheet(){
   const k=ui.sheet.k;
   if(k==='player') h=sheetPlayer(ui.sheet.id);
   if(k==='fixture') h=sheetFixture(ui.sheet.id);
+  if(k==='opponent') h=sheetOpponent();
+  if(k==='notes') h=sheetCoachingNotes();
   if(k==='goal') h=sheetGoal();
   if(k==='injury') h=sheetInjury();
   if(k==='alerts') h=sheetAlerts();
@@ -1047,6 +1060,12 @@ const A = {
   nav(d){ ui.view=d.v; ui.sel=null; ui.confirm=null; window.scrollTo(0,0); },
   openFx(d){ ui.view='fixture'; ui.fxId=d.id; ui.block=0; ui.sel=null; ui.styleTab=null; window.scrollTo(0,0); },
   addFx(){ ui.sheet={k:'fixture'}; ui.confirm=null; },
+  addOpponent(){ui.sheet={k:'opponent'};},
+  editOpponent(d){ui.sheet={k:'opponent',name:d.name};},
+  saveOpponent(){const n=val('oppName').trim(),old=ui.sheet.name||'';if(!n){toast('Enter opponent name');return 'keep';}if(opponentNames().some(x=>x.toLowerCase()===n.toLowerCase()&&x.toLowerCase()!==old.toLowerCase())){toast('Opponent already exists');return 'keep';}db.opponents=db.opponents||[];if(old){fixtures().filter(f=>f.opponent.toLowerCase()===old.toLowerCase()).forEach(f=>f.opponent=n);db.opponents.filter(o=>o.teamId===team().id&&o.name.toLowerCase()===old.toLowerCase()).forEach(o=>o.name=n);}rememberOpponent(n);ui.sheet=null;toast('Opponent saved');},
+  archiveOpponent(){const n=ui.sheet.name;db.opponents=db.opponents||[];let o=db.opponents.find(o=>o.teamId===team().id&&o.name.toLowerCase()===n.toLowerCase());if(!o){o={id:uid(),teamId:team().id,name:n};db.opponents.push(o);}o.archived=true;ui.sheet=null;toast('Opponent hidden; results kept');},
+  editNotes(d){ui.sheet={k:'notes',id:d.id};},
+  saveNotes(){const f=fixture(ui.sheet.id);f.coachingNotes={good:val('noteGood'),improve:val('noteImprove'),training:val('noteTraining')};ui.sheet=null;toast('Coaching notes saved');},
   editFx(d){ ui.sheet={k:'fixture',id:d.id}; ui.confirm=null; },
   editPlayer(d){ ui.sheet={k:'player',id:d.id||null}; ui.confirm=null; },
   closeSheet(){ ui.sheet=null; ui.confirm=null; },
@@ -1066,7 +1085,7 @@ const A = {
     const o={opponent:opp,date:val('fDate'),time:val('fTime'),homeAway:val('fHA'),competition:val('fComp'),venue:val('fVenue'),pitch:val('fPitch'),format:+val('fFmt'),periods:+val('fPer'),periodMins:Math.max(1,+val('fMins')||10),windows:+val('fWin')};
     if(d.id){ const f=fixture(d.id); const changed=f.format!==o.format||f.periods!==o.periods||f.windows!==o.windows||f.periodMins!==o.periodMins; Object.assign(f,o,{sample:false}); if(changed&&!f.match) f.plan=null; }
     else { const f=Object.assign({id:uid(),teamId:team().id,available:squad().map(p=>p.id),prefs:{},formationId:null,plan:null,match:null,score:null,scorers:[],status:'upcoming'},o); db.fixtures.push(f); ui.view='fixture'; ui.fxId=f.id; ui.block=0; }
-    ui.sheet=null; toast('Fixture saved');
+    rememberOpponent(opp);ui.sheet=null; toast('Fixture saved');
   },
   delFx(d){ db.fixtures=db.fixtures.filter(f=>f.id!==d.id); ui.sheet=null; ui.confirm=null; ui.view='fixtures'; toast('Fixture deleted'); },
   toggleAvail(d){ const f=curFx(); const i=f.available.indexOf(d.id); if(i>=0) f.available.splice(i,1); else f.available.push(d.id); autoPlan(f,false); },
@@ -1157,6 +1176,7 @@ const A = {
   doImport(){ const t=team(); let n=0, dup=0;
     ui.sheet.preview.rows.forEach(r=>{ if(fixtures().some(f=>f.date===r.date&&f.opponent.toLowerCase()===r.opponent.toLowerCase())){dup++;return;}
       db.fixtures.push({id:uid(),teamId:t.id,date:r.date,time:'',opponent:r.opponent,venue:r.venue,homeAway:r.homeAway,competition:r.competition||'League',format:t.format,periods:t.periods,periodMins:t.periodMins,windows:1,available:[],prefs:{},formationId:null,plan:null,match:null,score:{us:r.us,them:r.them},scorers:[],status:'played',imported:true}); n++; });
+    ui.sheet.preview.rows.forEach(r=>rememberOpponent(r.opponent));
     ui.sheet=null; toast(`Imported ${n} result${n===1?'':'s'}${dup?`, skipped ${dup} already here`:''}`); },
   clearSample(){ const t=team(); const ids=new Set(db.players.filter(p=>p.teamId===t.id&&p.sample).map(p=>p.id));
     db.players=db.players.filter(p=>!ids.has(p.id)); db.fixtures=db.fixtures.filter(f=>!(f.teamId===t.id&&f.sample));
@@ -1254,6 +1274,7 @@ document.addEventListener('change',e=>{
     if(a==='al') c[el.dataset.k]=el.dataset.k==='warn'?+v:v; else c.custom[+el.dataset.i][el.dataset.k]=el.dataset.k==='min'?Math.max(1,parseInt(v)||1):v;
     if(a==='alc') c.custom.sort((x,y)=>x.min-y.min);
     setAlertCfg(c); if(a==='alc'&&el.dataset.k==='min') setTimeout(renderSheet); save(); return; }
+  if(a==='historyFilter'){if(el.dataset.k==='season')ui.historySeason=el.value;else ui.historyOpponent=el.value;render();return;}
   if(a==='mf'||a==='gr'){ draftField(el); if(el.dataset.k==='us'||el.dataset.k==='pid') setTimeout(renderSheet); return; }
   if(a==='pref'){ const f=curFx(), id=el.dataset.id; f.prefs=f.prefs||{}; f.injured=(f.injured||[]).filter(x=>x!==id);
     if(el.value==='injured'){ f.injured.push(id); delete f.prefs[id]; } else if(el.value) f.prefs[id]=el.value; else delete f.prefs[id];
