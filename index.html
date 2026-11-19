@@ -458,6 +458,7 @@ function planFrom(fx, from, played, prev, respectLocks){
       const sl=old.slots.map(id=>pids.includes(id)?id:null);
       blocks.push({slots:sl,locked:true}); sl.forEach(id=>{if(id)played[id]+=bm}); prev=sl; continue;
     }
+    const mandatory=requiredForBlock(fx,b);
     let chosen, gk=null;
     if(pids.length<=K){ chosen=[...pids]; gk=keeper||pickGk(pids,played,targets,prev); }
     else{
@@ -470,14 +471,14 @@ function planFrom(fx, from, played, prev, respectLocks){
         if(prefs[id]==='limited' && played[id]+bm>targets[id]+bm*0.25) s-=1e3;
         return s;
       };
-      const rest=pids.filter(id=>id!==gk).sort((a,c)=>prio(c)-prio(a));
+      const rest=pids.filter(id=>id!==gk).sort((a,c)=>(+mandatory.includes(c))-(+mandatory.includes(a))||prio(c)-prio(a));
       chosen=[gk,...rest.slice(0,K-1)];
       let bench=rest.slice(K-1);
       // positional balance: allow near-equal swaps that improve team shape
       let cur=assign(chosen,slots,prev,gk).score;
       for(let it=0;it<3;it++){
         let best=null;
-        for(const s of chosen){ if(s===gk || (prefs[s]==='start'&&b===0)) continue;
+        for(const s of chosen){ if(s===gk || mandatory.includes(s)) continue;
           for(const q of bench){ if(Math.abs(prio(s)-prio(q))>bm*0.5) continue;
             const trial=chosen.map(x=>x===s?q:x); const sc=assign(trial,slots,prev,gk).score;
             if(sc>cur+4 && (!best||sc>best.sc)) best={s,q,sc}; } }
@@ -498,6 +499,28 @@ function pickGk(pids,played,targets,prev){
   if(c.length){ return c.sort((a,b)=>{const ra=player(a).pos.indexOf('GK'), rb=player(b).pos.indexOf('GK'); if(ra!==rb) return ra-rb; return (targets[b]-played[b])-(targets[a]-played[a]);})[0]; }
   if(prev&&prev[0]&&pids.includes(prev[0])) return prev[0];
   return [...pids].sort((a,b)=>(targets[b]-played[b])-(targets[a]-played[a]))[0];
+}
+function requiredForBlock(fx,b){
+ const p=Math.floor(b/fx.windows), out=new Set();
+ Object.entries(fx.prefs||{}).forEach(([id,r])=>{
+  if(r==='start'&&b===0)out.add(id);
+  if(r==='must'&&(fx.mustPeriods?.[id]||[]).includes(p))out.add(id);
+ });
+ return [...out].filter(id=>fx.available.includes(id)&&!(fx.injured||[]).includes(id));
+}
+function ruleConflicts(fx){
+ const errors=[];
+ for(let p=0;p<fx.periods;p++){
+  const n=requiredForBlock(fx,p*fx.windows).length;
+  if(n>fx.format)errors.push(periodShort(fx,p)+': '+n+' mandatory players for '+fx.format+' places');
+ }
+ return errors;
+}
+function safeReplan(fx){
+ const errors=ruleConflicts(fx);
+ if(errors.length){toast(errors[0]);return false;}
+ if(fx.match&&!fx.match.ended)replanLive(fx,fx.match);else autoPlan(fx,false);
+ return true;
 }
 function autoPlan(fx, keepLocks){
   if(!formationById(fx.formationId) || formationById(fx.formationId).format!==fx.format){
@@ -734,7 +757,7 @@ function vFixture(){
   const pm=planMinutes(fx); const {targets}=targetsFor(fx,fitIds(fx));
   const full=fx.periods*fx.periodMins;
   const style=ui.styleTab||F.style;
-  const prefLabel={'':'Normal',more:'More time',limited:'Limited',start:'Must start',injured:'Injured'};
+  const prefLabel={'':'Normal',more:'More time',limited:'Limited',start:'Must start',must:'Must play',injured:'Injured'};
   return `<div class="stack">
    <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="fixtures">‹ Fixtures</button><button class="btn sm" data-a="editFx" data-id="${fx.id}">Edit details</button></div>
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
@@ -744,7 +767,9 @@ function vFixture(){
      <div class="list">${ps.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||'');
        return `<div class="li" style="gap:10px"><button class="shirt" style="border:0;${on?'':'background:var(--surface-2);color:var(--muted)'}" data-a="toggleAvail" data-id="${p.id}" aria-pressed="${on}" aria-label="Toggle ${esc(p.name)} available">${p.number??''}</button>
          <button class="main" style="border:0;background:none;text-align:left;padding:0;${on?'':'color:var(--muted);text-decoration:line-through'}" data-a="toggleAvail" data-id="${p.id}"><span class="title">${esc(p.name)}</span> ${on&&inj?'<span class="pill" style="background:var(--bad);color:#fff">Injured</span>':''} <span class="small muted">${p.pos.join(' · ')}</span></button>
-         ${on?`<select class="input" style="width:auto;min-height:36px;padding:4px 8px;font-size:13px" data-a="pref" data-id="${p.id}">${Object.entries(prefLabel).map(([k,l])=>`<option value="${k}" ${pr===k?'selected':''}>${l}</option>`).join('')}</select>`:'<span class="small muted">Unavailable</span>'}</div>`;}).join('')}</div>
+         ${on?`<select class="input" style="width:auto;min-height:36px;padding:4px 8px;font-size:13px" data-a="pref" data-id="${p.id}">${Object.entries(prefLabel).map(([k,l])=>`<option value="${k}" ${pr===k?'selected':''}>${l}</option>`).join('')}</select>${pr==='must'? `<div style="width:100%;padding-left:48px"><div class="small muted">Must play in:</div>${Array.from({length:fx.periods},(_,i)=>`<label style="display:inline-block;margin:6px"><input type="checkbox" data-a="mustPeriod" data-id="${p.id}" data-p="${i}" ${(fx.mustPeriods?.[p.id]||[]).includes(i)?'checked':''}>${periodShort(fx,i)}</label>`).join('')}</div>`:''}`:'<span class="small muted">Unavailable</span>'}</div>`;}).join('')}</div>
+     ${ruleConflicts(fx).length?`<div class="alert">Selection conflict: ${ruleConflicts(fx).map(esc).join('; ')}</div>`:''}
+     ${Array.from({length:fx.periods},(_,i)=>`<div class="small muted">${periodShort(fx,i)}: ${requiredForBlock(fx,i*fx.windows).length}/${fx.format} mandatory</div>`).join('')}
      ${fx.available.length<fx.format?`<div class="alert">Only ${fx.available.length} available for ${fx.format}v${fx.format}. Some positions will be empty.</div>`:''}
    </div>
 
@@ -1133,7 +1158,7 @@ const A = {
   styleTab(d){ ui.styleTab=d.s; },
   setFormation(d){ const f=curFx(); f.formationId=d.id; ui.styleTab=null; autoPlan(f,false); },
   fav(d){ const t=team(); t.favs=t.favs||[]; const i=t.favs.indexOf(d.id); if(i>=0) t.favs.splice(i,1); else t.favs.push(d.id); },
-  autoPlan(){ const f=curFx(); autoPlan(f,false); ui.sel=null; toast('Plan rebuilt'); },
+  autoPlan(){ const f=curFx(); if(!safeReplan(f))return; ui.sel=null; toast('Plan rebuilt'); },
   block(d){ ui.block=+d.b; ui.sel=null; },
   slot(d){ if(ui.view==='match') return liveTap({t:'slot',j:+d.j}); planTap({t:'slot',j:+d.j}); },
   benchSel(d){ if(ui.view==='match') return liveTap({t:'bench',id:d.id}); planTap({t:'bench',id:d.id}); },
@@ -1315,9 +1340,10 @@ document.addEventListener('change',e=>{
     setAlertCfg(c); if(a==='alc'&&el.dataset.k==='min') setTimeout(renderSheet); save(); return; }
   if(a==='historyFilter'){if(el.dataset.k==='season')ui.historySeason=el.value;else ui.historyOpponent=el.value;render();return;}
   if(a==='mf'||a==='gr'){ draftField(el); if(el.dataset.k==='us'||el.dataset.k==='pid') setTimeout(renderSheet); return; }
-  if(a==='pref'){ const f=curFx(), id=el.dataset.id; f.prefs=f.prefs||{}; f.injured=(f.injured||[]).filter(x=>x!==id);
+  if(a==='mustPeriod'){const f=curFx(),id=el.dataset.id,p=+el.dataset.p;f.mustPeriods=f.mustPeriods||{};const old=f.mustPeriods[id]||[];f.mustPeriods[id]=el.checked?[...new Set([...old,p])]:old.filter(x=>x!==p);if(ruleConflicts(f).length){f.mustPeriods[id]=old;toast('Period already has maximum mandatory players');}else safeReplan(f);}
+  else if(a==='pref'){ const f=curFx(), id=el.dataset.id; f.prefs=f.prefs||{}; f.injured=(f.injured||[]).filter(x=>x!==id);
     if(el.value==='injured'){ f.injured.push(id); delete f.prefs[id]; } else if(el.value) f.prefs[id]=el.value; else delete f.prefs[id];
-    if(f.match&&!f.match.ended) replanLive(f,f.match); else autoPlan(f,false); }
+    if(el.value!=='must'&&f.mustPeriods)delete f.mustPeriods[id];safeReplan(f); }
   else if(a==='filter'){ ui.filter=Object.assign({},ui.filter,{[el.dataset.k]:el.value}); }
   else if(a==='teamField'){ team()[el.dataset.k]=el.value; }
   else if(a==='teamNum'){ team()[el.dataset.k]=+el.value; }
