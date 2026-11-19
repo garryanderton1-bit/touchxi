@@ -635,6 +635,7 @@ function render(){
   let body='';
   if(ui.view==='home') body=vHome();
   else if(ui.view==='squad') body=vSquad();
+  else if(ui.view==='playerProfile') body=vPlayerProfile();
   else if(ui.view==='fixtures') body=vFixtures();
   else if(ui.view==='opponents') body=vOpponents();
   else if(ui.view==='opponentDetail') body=vOpponentDetail();
@@ -643,7 +644,7 @@ function render(){
   else if(ui.view==='stats') body=vStats();
   else if(ui.view==='team') body=vTeam();
   const tabs=[['home','Home'],['squad','Squad'],['fixtures','Fixtures'],['stats','Stats'],['team','Team']];
-  const active = ['fixture','opponents','opponentDetail','history'].includes(ui.view)?'fixtures':ui.view;
+  const active = ui.view==='playerProfile'?'squad':['fixture','opponents','opponentDetail','history'].includes(ui.view)?'fixtures':ui.view;
   app.innerHTML = `
   <header class="bar"><div class="wrap">${badgeHtml(t)}<div class="grow"><div class="tname">${esc(t.name)}</div><div class="brand">TouchXI</div></div><img class="applogo" src="${APP_LOGO}" alt="TouchXI"></div></header>
   <main class="wrap">${body}</main>
@@ -688,8 +689,30 @@ function vSquad(){
   const ps=squad();
   return `<div class="stack">
    <div class="row between"><h2>Squad <span class="muted num" style="font-size:18px">${ps.length}</span></h2><button class="btn primary" data-a="editPlayer">Add player</button></div>
-   <div class="card"><div class="list">${ps.map(p=>`<button class="li" data-a="editPlayer" data-id="${p.id}"><div class="shirt" style="overflow:hidden">${p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover" alt="">':(p.number??'')}</div><div class="main"><div class="title">${esc(p.name)} ${p.sample?'<span class="pill ex">Example</span>':''}</div><div class="row" style="gap:4px;margin-top:3px">${p.pos.length?p.pos.map((c,i)=>`<span class="pos ${i===0?'p1':''}">${c}</span>`).join(''):'<span class="pill">Positions not set</span>'}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">No players yet. Add your squad to start picking teams.</p>'}</div></div>
+   <div class="card"><div class="list">${ps.map(p=>`<button class="li" data-a="openPlayerProfile" data-id="${p.id}"><div class="shirt" style="overflow:hidden">${p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover" alt="">':(p.number??'')}</div><div class="main"><div class="title">${esc(p.name)} ${p.sample?'<span class="pill ex">Example</span>':''}</div><div class="row" style="gap:4px;margin-top:3px">${p.pos.length?p.pos.map((c,i)=>`<span class="pos ${i===0?'p1':''}">${c}</span>`).join(''):'<span class="pill">Positions not set</span>'}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">No players yet. Add your squad to start picking teams.</p>'}</div></div>
   </div>`;
+}
+function vPlayerProfile(){
+ const p=player(ui.profilePlayerId);if(!p)return '<div class="card">Player not found. <button class="btn" data-a="nav" data-v="squad">Back to squad</button></div>';
+ const career=computeStats({}).players.find(r=>r.p.id===p.id);
+ const recorded=fixtures().filter(f=>f.status==='played'&&!f.imported&&f.score);
+ const years=[...new Set(recorded.map(f=>f.season||season(f.date)))].sort().reverse();
+ const summary=years.map(y=>{
+  const games=recorded.filter(f=>(f.season||season(f.date))===y);
+  const goals=games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length,0);
+  const assists=games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.assist===p.id).length,0);
+  const motm=games.filter(f=>f.motm===p.id).length;
+  const apps=games.filter(f=>f.match?.stints?.some(x=>x.pid===p.id)).length;
+  return {y,apps,goals,assists,motm};
+ }).filter(x=>x.apps||x.goals||x.assists||x.motm);
+ const photo=p.photo?'<img src="'+p.photo+'" alt="" style="width:110px;height:110px;border-radius:50%;object-fit:cover">':'<div class="shirt" style="width:110px;height:110px;border-radius:50%;font-size:42px">'+(p.number??'—')+'</div>';
+ return `<div class="stack">
+ <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="squad">‹ Squad</button><button class="btn primary sm" data-a="editPlayer" data-id="${p.id}">Edit profile</button></div>
+ <div class="card"><div class="row" style="align-items:center;gap:18px">${photo}<div><h2>${esc(p.name)}</h2><div class="muted">#${p.number??'—'} · ${esc((p.pos||[]).join(' / ')||'Position not set')}</div><span class="pill">${p.active===false?'Former player':'Active squad'}</span></div></div></div>
+ <div class="card stack"><div class="eyebrow">Career statistics</div><div class="grid2">${[['Appearances',career?.apps||0],['Goals',career?.goals||0],['Assists',career?.assists||0],['Man of the match',career?.motm||0]].map(([k,v])=>'<div style="padding:12px;background:var(--surface-2);border-radius:10px"><div class="stat-n num">'+v+'</div><div class="small muted">'+k+'</div></div>').join('')}</div><p class="small muted">Career totals include your manually entered opening records plus new match statistics.</p></div>
+ <div class="card stack"><div class="eyebrow">Season-by-season · tracked matches</div>${summary.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Season</th><th>Apps</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead><tbody>'+summary.map(r=>'<tr><td>'+esc(r.y)+'</td><td>'+r.apps+'</td><td>'+r.goals+'</td><td>'+r.assists+'</td><td>'+r.motm+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Season records will build as you complete and record new matches. Historical opening totals are included in career figures only.</p>'}</div>
+ <div class="card stack"><div class="eyebrow">Coaching notes</div><p style="white-space:pre-wrap;margin:0">${esc(p.notes||'No notes recorded yet.')}</p><button class="btn sm" data-a="editPlayer" data-id="${p.id}">Edit notes</button></div>
+ </div>`;
 }
 function sheetPlayer(id){
   const p=id?player(id):{name:'',number:'',pos:['CM'],notes:''};
@@ -1140,6 +1163,7 @@ const A = {
   editNotes(d){ui.sheet={k:'notes',id:d.id};},
   saveNotes(){const f=fixture(ui.sheet.id);f.coachingNotes={good:val('noteGood'),improve:val('noteImprove'),training:val('noteTraining')};ui.sheet=null;toast('Coaching notes saved');},
   editFx(d){ ui.sheet={k:'fixture',id:d.id}; ui.confirm=null; },
+  openPlayerProfile(d){ui.profilePlayerId=d.id;ui.view='playerProfile';window.scrollTo(0,0);},
   editPlayer(d){ ui.sheet={k:'player',id:d.id||null}; ui.confirm=null; },
   closeSheet(){ ui.sheet=null; ui.confirm=null; },
   confirm(d){ ui.confirm=d.k||null; },
