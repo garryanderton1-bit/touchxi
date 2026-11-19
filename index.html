@@ -1049,6 +1049,7 @@ function sheetImport(){
   const pv=ui.sheet.preview;
   return `<h2>Import results</h2>
    <p class="small muted" style="margin:0">In Google Sheets choose File › Download › CSV, open the file, and paste its contents here. Columns are matched by their headings: <b>Goalscorers</b> can contain Archie:2|Hugo:1; <b>Match Format</b>, <b>Season</b>, <b>Age Group</b>, <b>Notes</b> and <b>POTM</b> are supported. <b>Date</b>, <b>Opponent</b>, and either <b>Score</b> (like 3-1) or <b>For</b> and <b>Against</b>. <b>Competition</b>, <b>Venue</b> and <b>Home/Away</b> are optional.</p>
+   <label class="f">Choose CSV file<input class="input" type="file" id="csvFile" accept=".csv,text/csv"></label>
    <textarea class="input" id="csvTxt" placeholder="Date,Opponent,For,Against,Competition&#10;14/09/2023,Example Rovers,3,1,League">${esc(ui.sheet.text||'')}</textarea>
    ${pv?`<div class="card ${pv.errors.length?'':''}"><b>${pv.rows.length} results ready.</b> ${pv.errors.length?`<span class="muted small">${pv.errors.length} rows skipped: ${esc(pv.errors.slice(0,3).join('; '))}</span>`:''}
      <div class="list small" style="margin-top:6px">${pv.rows.slice(0,5).map(r=>`<div class="li">${fmtDate(r.date,{day:'numeric',month:'short',year:'numeric'})} · ${esc(r.opponent)} <b class="num" style="margin-left:auto">${r.us}–${r.them}</b></div>`).join('')}${pv.rows.length>5?`<div class="muted small">and ${pv.rows.length-5} more</div>`:''}</div></div>`:''}
@@ -1242,7 +1243,7 @@ const A = {
   importSheet(){ ui.sheet={k:'import'}; },
   previewImport(){ ui.sheet.text=val('csvTxt'); ui.sheet.preview=previewCSV(ui.sheet.text); },
   doImport(){ const t=team(); let n=0, dup=0;
-    ui.sheet.preview.rows.forEach(r=>{ if(fixtures().some(f=>f.date===r.date&&f.opponent.toLowerCase()===r.opponent.toLowerCase())){dup++;return;}
+    ui.sheet.preview.rows.forEach(r=>{ if(fixtures().some(f=>f.date===r.date&&f.opponent.toLowerCase()===r.opponent.toLowerCase()&&f.score?.us===r.us&&f.score?.them===r.them&&f.format===(r.format||t.format))){dup++;return;}
       db.fixtures.push({id:uid(),teamId:t.id,date:r.date,time:'',opponent:r.opponent,venue:r.venue,homeAway:r.homeAway,competition:r.competition||'League',format:r.format||t.format,periods:t.periods,periodMins:t.periodMins,windows:1,available:[],prefs:{},formationId:null,plan:null,match:null,score:{us:r.us,them:r.them},scorers:(r.scorerText||'').split('|').flatMap(part=>{const m=part.trim().match(/^(.+?):(\d+)$/);if(!m)return [];const name=m[1].trim();let p=db.players.find(x=>x.teamId===t.id&&x.name.toLowerCase()===name.toLowerCase());if(!p&&name.toLowerCase()==='freddy')p=db.players.find(x=>x.teamId===t.id&&x.name.toLowerCase()==='fred');if(!p){p={id:uid(),teamId:t.id,name,number:null,pos:[],notes:'',active:false};db.players.push(p);}return Array.from({length:Math.min(+m[2],30)},()=>({pid:p.id,assist:null}));}),season:r.season,ageGroup:r.ageGroup,notes:r.notes,potmName:r.potm,status:'played',imported:true}); n++; });
     ui.sheet.preview.rows.forEach(r=>rememberOpponent(r.opponent));
     ui.sheet=null; toast(`Imported ${n} result${n===1?'':'s'}${dup?`, skipped ${dup} already here`:''}`); },
@@ -1359,6 +1360,7 @@ document.addEventListener('change',e=>{
 function draftField(el){ const a=el.dataset.a; if(!ui.sheet||!ui.sheet.draft) return false;
   if(a==='mf'){ ui.sheet.draft[el.dataset.k]=el.value; return true; }
   if(a==='gr'){ ui.sheet.draft.scorers[+el.dataset.i][el.dataset.k]=el.value; return true; } return false; }
+document.addEventListener('change',async e=>{if(e.target.id==='csvFile'&&e.target.files?.[0]){const txt=await e.target.files[0].text();if(ui.sheet?.k==='import'){ui.sheet.text=txt;ui.sheet.preview=previewCSV(txt);render();}}});
 document.addEventListener('input',e=>{ if(e.target.dataset&&(e.target.dataset.a==='mf'||e.target.dataset.a==='gr')){ draftField(e.target); return; } if(e.target.dataset&&e.target.dataset.a==='color'){ team().colors[e.target.dataset.k]=e.target.value; applyTheme(); } });
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible'){ if(ui.view==='match'){ keepAwake(); renderMatch(); } } });
 
