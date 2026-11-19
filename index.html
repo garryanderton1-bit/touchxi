@@ -273,7 +273,21 @@ let db, ui = {view:'home', fxId:null, block:0, sel:null, sheet:null, styleTab:nu
 
 const PITCHES=['Grass','3G','4G','Astroturf','Indoor','Other'];
 // Squad and fixtures are not built in: load them with Team › Restore backup, or add them in the app.
-const REAL_PLAYERS=[];
+const REAL_PLAYERS=[
+ [null,'Rowan',['GK']],
+ [null,'Aiden',['CB','RB','LB']],
+ [null,'Ollie',['CB']],
+ [null,'Jacob',['CB','LM','ST']],
+ [null,'Hugo',['CDM','CM']],
+ [null,'John',['CM','CDM']],
+ [null,'Harry',['RW','LW','ST']],
+ [null,'Fred',['RW','LW']],
+ [null,'Fin',['LW','ST']],
+ [null,'Stanley',['LM','CM','ST']],
+ [null,'Archie',['ST','CAM']],
+ [null,'Seb',['ST','CB']],
+ [null,'Will',['RB','RM']]
+];
 const REAL_FIXTURES=[];
 function addRealData(t){
   t.name='Askern Miners U12 Red'; t.short='AM';
@@ -298,6 +312,11 @@ function seed(){
 function load(){
   try{ const raw=localStorage.getItem(STORE_KEY); if(raw){ db=JSON.parse(raw); } }catch(e){}
   if(!db||!db.teams||!db.teams.length) db=seed();
+  if(!db.squadImportedNov2026){
+    const t=db.teams.find(x=>/^askern miners/i.test(x.name));
+    if(t) addRealData(t);
+    db.squadImportedNov2026=true;
+  }
   if(!db.realV1){ // swap the original example data for the real Askern squad and fixtures
     const t=db.teams.find(x=>/^askern miners/i.test(x.name));
     if(t){ const ex=new Set(db.players.filter(p=>p.teamId===t.id&&p.sample).map(p=>p.id));
