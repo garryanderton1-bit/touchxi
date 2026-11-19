@@ -473,7 +473,8 @@ function planFrom(fx, from, played, prev, respectLocks){
       };
       const rest=pids.filter(id=>id!==gk).sort((a,c)=>(+mandatory.includes(c))-(+mandatory.includes(a))||prio(c)-prio(a));
       chosen=[gk,...rest.slice(0,K-1)];
-      let bench=rest.slice(K-1);
+      for(const id of mandatory){if(chosen.includes(id))continue;const j=chosen.findLastIndex(x=>x!==gk&&!mandatory.includes(x));if(j>=0)chosen[j]=id;}
+      let bench=pids.filter(id=>!chosen.includes(id));
       // positional balance: allow near-equal swaps that improve team shape
       let cur=assign(chosen,slots,prev,gk).score;
       for(let it=0;it<3;it++){
@@ -765,9 +766,9 @@ function vFixture(){
 
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fx.available.length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
      <div class="list">${ps.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||'');
-       return `<div class="li" style="gap:10px"><button class="shirt" style="border:0;${on?'':'background:var(--surface-2);color:var(--muted)'}" data-a="toggleAvail" data-id="${p.id}" aria-pressed="${on}" aria-label="Toggle ${esc(p.name)} available">${p.number??''}</button>
+       return `<div class="li" style="gap:10px;flex-wrap:wrap"><button class="shirt" style="border:0;${on?'':'background:var(--surface-2);color:var(--muted)'}" data-a="toggleAvail" data-id="${p.id}" aria-pressed="${on}" aria-label="Toggle ${esc(p.name)} available">${p.number??''}</button>
          <button class="main" style="border:0;background:none;text-align:left;padding:0;${on?'':'color:var(--muted);text-decoration:line-through'}" data-a="toggleAvail" data-id="${p.id}"><span class="title">${esc(p.name)}</span> ${on&&inj?'<span class="pill" style="background:var(--bad);color:#fff">Injured</span>':''} <span class="small muted">${p.pos.join(' · ')}</span></button>
-         ${on?`<select class="input" style="width:auto;min-height:36px;padding:4px 8px;font-size:13px" data-a="pref" data-id="${p.id}">${Object.entries(prefLabel).map(([k,l])=>`<option value="${k}" ${pr===k?'selected':''}>${l}</option>`).join('')}</select>${pr==='must'? `<div style="width:100%;padding-left:48px"><div class="small muted">Must play in:</div>${Array.from({length:fx.periods},(_,i)=>`<label style="display:inline-block;margin:6px"><input type="checkbox" data-a="mustPeriod" data-id="${p.id}" data-p="${i}" ${(fx.mustPeriods?.[p.id]||[]).includes(i)?'checked':''}>${periodShort(fx,i)}</label>`).join('')}</div>`:''}`:'<span class="small muted">Unavailable</span>'}</div>`;}).join('')}</div>
+         ${on?`<select class="input" style="width:auto;max-width:150px;min-height:36px;padding:4px 8px;font-size:13px;margin-left:auto" data-a="pref" data-id="${p.id}">${Object.entries(prefLabel).map(([k,l])=>`<option value="${k}" ${pr===k?'selected':''}>${l}</option>`).join('')}</select>${pr==='must'? `<div style="flex-basis:100%;width:100%;padding:6px 0 6px 48px"><div class="small muted">Must play in:</div>${Array.from({length:fx.periods},(_,i)=>`<label style="display:inline-block;margin:6px"><input type="checkbox" data-a="mustPeriod" data-id="${p.id}" data-p="${i}" ${(fx.mustPeriods?.[p.id]||[]).includes(i)?'checked':''}>${periodShort(fx,i)}</label>`).join('')}</div>`:''}`:'<span class="small muted">Unavailable</span>'}</div>`;}).join('')}</div>
      ${ruleConflicts(fx).length?`<div class="alert">Selection conflict: ${ruleConflicts(fx).map(esc).join('; ')}</div>`:''}
      ${Array.from({length:fx.periods},(_,i)=>`<div class="small muted">${periodShort(fx,i)}: ${requiredForBlock(fx,i*fx.windows).length}/${fx.format} mandatory</div>`).join('')}
      ${fx.available.length<fx.format?`<div class="alert">Only ${fx.available.length} available for ${fx.format}v${fx.format}. Some positions will be empty.</div>`:''}
@@ -1305,6 +1306,8 @@ function planTap(t){
   const get=x=>x.t==='slot'?sl[x.j]:x.id;
   if(a.t==='slot'&&b.t==='slot'){ if(a.j===b.j) return; [sl[a.j],sl[b.j]]=[sl[b.j],sl[a.j]]; }
   else { const s=a.t==='slot'?a:b, bn=a.t==='bench'?a:b; sl[s.j]=bn.id; }
+  const missing=requiredForBlock(fx,ui.block).filter(id=>!sl.includes(id));
+  if(missing.length){toast('Must play: '+missing.map(id=>player(id)?.name||'Player').join(', ')+' cannot be benched');return;}
   blk.slots=sl; blk.locked=true; replanAfter(fx,ui.block);
 }
 // Live edits: slot+bench = substitution now; slot+slot = switch positions.
