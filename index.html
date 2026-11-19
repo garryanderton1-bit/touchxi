@@ -330,7 +330,7 @@ function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); localStorage.setItem(STORE_KEY+'.ui', JSON.stringify({view:ui.view,fxId:ui.fxId})); }catch(e){}
 }
 const team = () => db.teams.find(t=>t.id===db.activeTeamId) || db.teams[0];
-const squad = () => db.players.filter(p=>p.teamId===team().id).sort((a,b)=>(a.number||99)-(b.number||99));
+const squad = () => db.players.filter(p=>p.teamId===team().id&&p.active!==false).sort((a,b)=>(a.number||99)-(b.number||99));
 const player = id => db.players.find(p=>p.id===id);
 const fixtures = () => db.fixtures.filter(f=>f.teamId===team().id);
 const fixture = id => db.fixtures.find(f=>f.id===id);
@@ -595,7 +595,7 @@ function finishMatch(fx,m){
 /* ============================ Stats ============================ */
 function computeStats(filter){
   const fxs=fixtures().filter(f=>f.status==='played'&&f.score).filter(f=>(!filter.season||season(f.date)===filter.season)&&(!filter.comp||f.competition===filter.comp));
-  const ps={}; squad().forEach(p=>ps[p.id]={p,apps:0,starts:0,subs:0,min:0,goals:0,assists:0,motm:0,star:0,pos:{}});
+  const ps={}; db.players.filter(p=>p.teamId===team().id).forEach(p=>ps[p.id]={p,apps:0,starts:0,subs:0,min:0,goals:0,assists:0,motm:0,star:0,pos:{}});
   const pitch={};
   const T={P:0,W:0,D:0,L:0,GF:0,GA:0};
   fxs.forEach(f=>{ T.P++; T[result(f)]++; T.GF+=f.score.us; T.GA+=f.score.them;
@@ -693,11 +693,14 @@ function sheetPlayer(id){
   const p=id?player(id):{name:'',number:'',pos:['CM'],notes:''};
   const sel=(i)=>`<select class="input" id="pp${i}"><option value="">${i?'None':'Choose'}</option>${POS.map(c=>`<option value="${c}" ${p.pos[i]===c?'selected':''}>${c} · ${POS_NAME[c]}</option>`).join('')}</select>`;
   const st=id?computeStats({}).players.find(r=>r.p.id===id):null;
+  const history=id?fixtures().filter(f=>f.status==='played'&&(f.scorers||[]).some(g=>g.pid===id)).sort((a,b)=>b.date.localeCompare(a.date)):[];
+  const bySeason={};history.forEach(f=>{const k=f.season||season(f.date);bySeason[k]=(bySeason[k]||0)+(f.scorers||[]).filter(g=>g.pid===id).length;});
   return `<h2>${id?'Edit player':'Add player'}</h2>
    <div class="grid2" style="grid-template-columns:1fr 90px"><label class="f">Name<input class="input" id="pName" value="${esc(p.name)}" autocomplete="off"></label><label class="f">Number<input class="input num" id="pNum" type="number" inputmode="numeric" value="${esc(p.number)}"></label></div>
    <label class="f">1st position${sel(0)}</label><label class="f">2nd position${sel(1)}</label><label class="f">3rd position${sel(2)}</label>
    <label class="f">Notes<input class="input" id="pNotes" value="${esc(p.notes||'')}" placeholder="e.g. quick, left-footed"></label>
    ${st?`<div class="kpis num"><div><div class="stat-n">${st.apps}</div><div class="small muted">Apps</div></div><div><div class="stat-n">${Math.round(st.min)}</div><div class="small muted">Mins</div></div><div><div class="stat-n">${st.goals}</div><div class="small muted">Goals</div></div><div><div class="stat-n">${st.assists}</div><div class="small muted">Assists</div></div></div>`:''}
+   ${id?`<div class="card stack"><b>Career goals by season</b>${Object.entries(bySeason).sort().map(([s,n])=>`<div class="row between"><span>${esc(s)}</span><b>${n}</b></div>`).join('')||'<p class="muted small">No goals recorded</p>'}<b>Scoring matches</b>${history.map(f=>`<div class="small">${esc(f.date)} · ${esc(f.opponent)} · ${(f.scorers||[]).filter(g=>g.pid===id).length} goal(s) · ${f.format}v${f.format}</div>`).join('')||'<p class="muted small">None recorded</p>'}</div>`:''}
    <div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="savePlayer" data-id="${id||''}">Save</button></div>
    ${id?(ui.confirm==='delP'?`<div class="notice"><span>Remove ${esc(p.name)} from the squad? Their past match records stay in your results.</span><button class="btn danger sm" data-a="delPlayer" data-id="${id}">Yes, remove</button></div>`:`<button class="btn danger" data-a="confirm" data-k="delP">Remove player</button>`):''}`;
 }
@@ -834,7 +837,7 @@ function vStats(){
   const comps=[...new Set(all.map(f=>f.competition).filter(Boolean))];
   const st=computeStats(ui.filter||{});
   const T=st.T, gd=T.GF-T.GA;
-  const rows=st.players.sort((a,b)=>b.min-a.min||b.goals-a.goals);
+  const rows=st.players.sort((a,b)=>b.goals-a.goals||b.min-a.min);
   const opp=Object.entries(st.opp).sort((a,b)=>b[1].P-a[1].P);
   const recent=[...st.fxs].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).reverse();
   return `<div class="stack">
@@ -846,7 +849,7 @@ function vStats(){
     ${recent.length?`<div><div class="small muted" style="margin-bottom:6px">Recent goal difference, oldest to newest</div>${trendSvg(recent)}</div>`:''}
    </div>
    <div class="card"><div class="eyebrow">Players</div><div class="scroll-x"><table class="mtab num"><thead><tr><th>Player</th><th>Apps</th><th>St</th><th>Sub</th><th>Min</th><th>G</th><th>A</th><th>MOTM</th><th>Star</th><th>Main pos</th></tr></thead><tbody>
-     ${rows.map(r=>{const top=Object.entries(r.pos).sort((a,b)=>b[1]-a[1])[0];return `<tr><td>${esc(r.p.name)}</td><td>${r.apps}</td><td>${r.starts}</td><td>${r.subs}</td><td>${Math.round(r.min)}</td><td>${r.goals}</td><td>${r.assists}</td><td>${r.motm}</td><td>${r.star}</td><td>${top?top[0]:'–'}</td></tr>`}).join('')}
+     ${rows.map(r=>{const top=Object.entries(r.pos).sort((a,b)=>b[1]-a[1])[0];return `<tr><td>${esc(r.p.name)}${r.p.active===false?' (former)':''}</td><td>${r.apps}</td><td>${r.starts}</td><td>${r.subs}</td><td>${Math.round(r.min)}</td><td>${r.goals}</td><td>${r.assists}</td><td>${r.motm}</td><td>${r.star}</td><td>${top?top[0]:'–'}</td></tr>`}).join('')}
    </tbody></table></div><p class="small muted">Appearances and minutes come from matches tracked on the matchday screen. Goals, assists, man of the match and star player also count from match reports entered by hand.</p></div>
    ${Object.keys(st.pitch).length?`<div class="card"><div class="eyebrow">By pitch type</div><div class="scroll-x"><table class="mtab num"><thead><tr><th>Pitch</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th></tr></thead><tbody>
      ${Object.entries(st.pitch).sort((a,b)=>b[1].P-a[1].P).map(([o,x])=>`<tr><td>${esc(o)}</td><td>${x.P}</td><td>${x.W}</td><td>${x.D}</td><td>${x.L}</td><td>${x.GF-x.GA>0?'+':''}${x.GF-x.GA}</td></tr>`).join('')}
@@ -1045,7 +1048,7 @@ function sheetFormation(){
 function sheetImport(){
   const pv=ui.sheet.preview;
   return `<h2>Import results</h2>
-   <p class="small muted" style="margin:0">In Google Sheets choose File › Download › CSV, open the file, and paste its contents here. Columns are matched by their headings: <b>Date</b>, <b>Opponent</b>, and either <b>Score</b> (like 3-1) or <b>For</b> and <b>Against</b>. <b>Competition</b>, <b>Venue</b> and <b>Home/Away</b> are optional.</p>
+   <p class="small muted" style="margin:0">In Google Sheets choose File › Download › CSV, open the file, and paste its contents here. Columns are matched by their headings: <b>Goalscorers</b> can contain Archie:2|Hugo:1; <b>Match Format</b>, <b>Season</b>, <b>Age Group</b>, <b>Notes</b> and <b>POTM</b> are supported. <b>Date</b>, <b>Opponent</b>, and either <b>Score</b> (like 3-1) or <b>For</b> and <b>Against</b>. <b>Competition</b>, <b>Venue</b> and <b>Home/Away</b> are optional.</p>
    <textarea class="input" id="csvTxt" placeholder="Date,Opponent,For,Against,Competition&#10;14/09/2023,Example Rovers,3,1,League">${esc(ui.sheet.text||'')}</textarea>
    ${pv?`<div class="card ${pv.errors.length?'':''}"><b>${pv.rows.length} results ready.</b> ${pv.errors.length?`<span class="muted small">${pv.errors.length} rows skipped: ${esc(pv.errors.slice(0,3).join('; '))}</span>`:''}
      <div class="list small" style="margin-top:6px">${pv.rows.slice(0,5).map(r=>`<div class="li">${fmtDate(r.date,{day:'numeric',month:'short',year:'numeric'})} · ${esc(r.opponent)} <b class="num" style="margin-left:auto">${r.us}–${r.them}</b></div>`).join('')}${pv.rows.length>5?`<div class="muted small">and ${pv.rows.length-5} more</div>`:''}</div></div>`:''}
@@ -1092,7 +1095,7 @@ function previewCSV(text){
   if(rows.length<2){ out.errors.push('Need a heading row and at least one result'); return out; }
   const h=rows[0].map(x=>x.trim().toLowerCase());
   const col=(...names)=>h.findIndex(x=>names.some(n=>x===n||x.includes(n)));
-  const cD=col('date'), cO=col('opponent','opposition','vs','team'), cS=col('score','result'), cF=col('for','scored','us','gf'), cA=col('against','conceded','them','ga'), cC=col('competition','comp','type'), cV=col('venue','ground'), cH=col('home/away','h/a','home');
+  const cD=col('date'), cO=col('opponent','opposition','vs','team'), cS=col('score','result'), cF=col('for','scored','us','gf'), cA=col('against','conceded','them','ga'), cC=col('competition','comp','type'), cV=col('venue','ground'), cH=col('home/away','h/a','home'),cG=col('goalscorers'),cFmt=col('match format'),cSeason=col('season'),cAge=col('age group'),cNotes=col('notes'),cMotm=col('potm');
   if(cD<0||cO<0){ out.errors.push('Could not find Date and Opponent columns'); return out; }
   rows.slice(1).forEach((r,i)=>{
     const date=parseDate(r[cD]||''); const opp=(r[cO]||'').trim();
@@ -1101,7 +1104,7 @@ function previewCSV(text){
     else if(cS>=0){ const m=(r[cS]||'').match(/(\d+)\s*[-–:]\s*(\d+)/); if(m){us=+m[1];them=+m[2];} }
     if(!date||!opp||isNaN(us)||isNaN(them)||us===null){ out.errors.push(`row ${i+2}`); return; }
     const ha=cH>=0?(r[cH]||'').trim().toUpperCase()[0]:'H';
-    out.rows.push({date,opponent:opp,us,them,competition:cC>=0?(r[cC]||'').trim():'',venue:cV>=0?(r[cV]||'').trim():'',homeAway:ha==='A'?'A':ha==='N'?'N':'H'});
+    out.rows.push({date,opponent:opp,us,them,competition:cC>=0?(r[cC]||'').trim():'',venue:cV>=0?(r[cV]||'').trim():'',homeAway:ha==='A'?'A':ha==='N'?'N':'H',scorerText:cG>=0?r[cG]||'':'',format:cFmt>=0?parseInt(r[cFmt]):null,season:cSeason>=0?r[cSeason]||'':'',ageGroup:cAge>=0?r[cAge]||'':'',notes:cNotes>=0?r[cNotes]||'':'',potm:cMotm>=0?r[cMotm]||'':''});
   });
   return out;
 }
@@ -1139,12 +1142,12 @@ const A = {
     const name=val('pName').trim(); if(!name){ toast('Add a name first'); return 'keep'; }
     const pos=[val('pp0'),val('pp1'),val('pp2')].filter(Boolean).filter((c,i,a)=>a.indexOf(c)===i);
     const num=val('pNum')===''?null:+val('pNum');
-    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,notes:val('pNotes'),sample:false}); }
+    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,notes:val('pNotes'),active:true,sample:false}); }
     else { const p={id:uid(),teamId:team().id,name,number:num,pos,notes:val('pNotes')}; db.players.push(p);
       fixtures().filter(f=>f.status!=='played'&&!f.match).forEach(f=>{f.available.push(p.id); f.plan=null;}); }
     ui.sheet=null; toast('Saved');
   },
-  delPlayer(d){ db.players=db.players.filter(p=>p.id!==d.id); fixtures().forEach(f=>{ if(f.status!=='played'&&!f.match){ f.available=f.available.filter(x=>x!==d.id); f.plan=null; } }); ui.sheet=null; ui.confirm=null; toast('Player removed'); },
+  delPlayer(d){ player(d.id).active=false; fixtures().forEach(f=>{ if(f.status!=='played'&&!f.match){ f.available=f.available.filter(x=>x!==d.id); f.plan=null; } }); ui.sheet=null; ui.confirm=null; toast('Player archived; historical stats preserved'); },
   saveFx(d){
     const opp=val('fOpp').trim(); if(!opp){ toast('Add the opponent'); return 'keep'; }
     const o={opponent:opp,date:val('fDate'),time:val('fTime'),homeAway:val('fHA'),competition:val('fComp'),venue:val('fVenue'),pitch:val('fPitch'),format:+val('fFmt'),periods:+val('fPer'),periodMins:Math.max(1,+val('fMins')||10),windows:+val('fWin')};
@@ -1240,7 +1243,7 @@ const A = {
   previewImport(){ ui.sheet.text=val('csvTxt'); ui.sheet.preview=previewCSV(ui.sheet.text); },
   doImport(){ const t=team(); let n=0, dup=0;
     ui.sheet.preview.rows.forEach(r=>{ if(fixtures().some(f=>f.date===r.date&&f.opponent.toLowerCase()===r.opponent.toLowerCase())){dup++;return;}
-      db.fixtures.push({id:uid(),teamId:t.id,date:r.date,time:'',opponent:r.opponent,venue:r.venue,homeAway:r.homeAway,competition:r.competition||'League',format:t.format,periods:t.periods,periodMins:t.periodMins,windows:1,available:[],prefs:{},formationId:null,plan:null,match:null,score:{us:r.us,them:r.them},scorers:[],status:'played',imported:true}); n++; });
+      db.fixtures.push({id:uid(),teamId:t.id,date:r.date,time:'',opponent:r.opponent,venue:r.venue,homeAway:r.homeAway,competition:r.competition||'League',format:r.format||t.format,periods:t.periods,periodMins:t.periodMins,windows:1,available:[],prefs:{},formationId:null,plan:null,match:null,score:{us:r.us,them:r.them},scorers:(r.scorerText||'').split('|').flatMap(part=>{const m=part.trim().match(/^(.+?):(\d+)$/);if(!m)return [];const name=m[1].trim();let p=db.players.find(x=>x.teamId===t.id&&x.name.toLowerCase()===name.toLowerCase());if(!p&&name.toLowerCase()==='freddy')p=db.players.find(x=>x.teamId===t.id&&x.name.toLowerCase()==='fred');if(!p){p={id:uid(),teamId:t.id,name,number:null,pos:[],notes:'',active:false};db.players.push(p);}return Array.from({length:Math.min(+m[2],30)},()=>({pid:p.id,assist:null}));}),season:r.season,ageGroup:r.ageGroup,notes:r.notes,potmName:r.potm,status:'played',imported:true}); n++; });
     ui.sheet.preview.rows.forEach(r=>rememberOpponent(r.opponent));
     ui.sheet=null; toast(`Imported ${n} result${n===1?'':'s'}${dup?`, skipped ${dup} already here`:''}`); },
   clearSample(){ const t=team(); const ids=new Set(db.players.filter(p=>p.teamId===t.id&&p.sample).map(p=>p.id));
