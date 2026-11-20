@@ -540,7 +540,7 @@ function safeReplan(fx){
 }
 function autoPlan(fx, keepLocks){
   if(!formationById(fx.formationId) || formationById(fx.formationId).format!==fx.format){
-    const t=team(); fx.formationId=(t.favs||[]).find(id=>formationById(id)&&formationById(id).format===fx.format) || formationsFor(fx.format).find(f=>f.style==='Balanced').id;
+    const t=team(); fx.formationId=(formationById(t.defaultFormationId)?.format===fx.format?t.defaultFormationId:null) || (t.favs||[]).find(id=>formationById(id)&&formationById(id).format===fx.format) || formationsFor(fx.format).find(f=>f.style==='Balanced').id;
   }
   const r=planFrom(fx,0,{},null,keepLocks);
   fx.plan={formationId:fx.formationId,blocks:r.blocks};
@@ -936,6 +936,7 @@ function vTeam(){
      <label class="f">Periods<select class="input" data-a="teamNum" data-k="periods">${[1,2,3,4].map(n=>`<option value="${n}" ${t.periods===n?'selected':''}>${n}</option>`).join('')}</select></label>
      <label class="f">Minutes<input class="input num" type="number" value="${t.periodMins}" data-a="teamNum" data-k="periodMins"></label></div>
    </div>
+   <div class="card stack"><div class="eyebrow">Default formation</div><label class="f">Used automatically for new fixtures<select class="input" data-a="defaultFormation"><option value="">Automatic (balanced)</option>${formationsFor(t.format).map(f=>`<option value="${f.id}" ${t.defaultFormationId===f.id?'selected':''}>${esc(f.name)} · ${f.style}</option>`).join('')}</select></label><p class="small muted">Changing this will not alter existing fixtures. Choose a new default if you change match format.</p></div>
    <div class="card stack"><div class="eyebrow">Teams</div>
      <div class="list">${db.teams.map(x=>`<button class="li" data-a="switchTeam" data-id="${x.id}">${badgeHtml(x,34)}<div class="main"><div class="title">${esc(x.name)}</div><div class="small muted">${db.players.filter(p=>p.teamId===x.id).length} players</div></div>${x.id===t.id?'<span class="pill">Current</span>':''}</button>`).join('')}</div>
      <button class="btn" data-a="addTeam">Add another team</button>
@@ -1207,7 +1208,7 @@ const A = {
     const opp=val('fOpp').trim(); if(!opp){ toast('Add the opponent'); return 'keep'; }
     const o={opponent:opp,date:val('fDate'),time:val('fTime'),homeAway:val('fHA'),competition:val('fComp'),venue:val('fVenue'),pitch:val('fPitch'),format:+val('fFmt'),periods:+val('fPer'),periodMins:Math.max(1,+val('fMins')||10),windows:+val('fWin')};
     if(d.id){ const f=fixture(d.id); const changed=f.format!==o.format||f.periods!==o.periods||f.windows!==o.windows||f.periodMins!==o.periodMins; Object.assign(f,o,{sample:false}); if(changed&&!f.match) f.plan=null; }
-    else { const f=Object.assign({id:uid(),teamId:team().id,available:squad().map(p=>p.id),prefs:{},formationId:null,plan:null,match:null,score:null,scorers:[],status:'upcoming'},o); db.fixtures.push(f); ui.view='fixture'; ui.fxId=f.id; ui.block=0; }
+    else { const f=Object.assign({id:uid(),teamId:team().id,available:squad().map(p=>p.id),prefs:{},formationId:formationById(team().defaultFormationId)?.format===o.format?team().defaultFormationId:null,plan:null,match:null,score:null,scorers:[],status:'upcoming'},o); db.fixtures.push(f); ui.view='fixture'; ui.fxId=f.id; ui.block=0; }
     rememberOpponent(opp);ui.sheet=null; toast('Fixture saved');
   },
   delFx(d){ db.fixtures=db.fixtures.filter(f=>f.id!==d.id); ui.sheet=null; ui.confirm=null; ui.view='fixtures'; toast('Fixture deleted'); },
@@ -1216,7 +1217,8 @@ const A = {
   availAll(){ const f=curFx(); f.available=squad().map(p=>p.id).filter(id=>!(f.injured||[]).includes(id));f.prefs=f.prefs||{};Object.keys(f.prefs).forEach(id=>{if(f.prefs[id]==='unavailable')delete f.prefs[id]}); autoPlan(f,false); },
   availNone(){ const f=curFx(); f.prefs=f.prefs||{};f.available.forEach(id=>{if(!(f.injured||[]).includes(id))f.prefs[id]='unavailable'});f.available=[]; autoPlan(f,false); },
   styleTab(d){ ui.styleTab=d.s; },
-  setFormation(d){ const f=curFx(); f.formationId=d.id; ui.styleTab=null; autoPlan(f,false); },
+  setFormation(d){ const f=curFx(), chosen=formationById(d.id);if(!chosen||chosen.format!==f.format){toast('Formation does not match match format');return;}if(f.match&&!f.match.ended){toast('Cannot change formation during a live match');return;}f.formationId=d.id;ui.styleTab=chosen.style;autoPlan(f,false);ui.block=0;ui.sel=null;toast('Formation changed to '+chosen.name); },
+  defaultFormation(d){team().defaultFormationId=d.id||null;toast('Default formation saved');},
   fav(d){ const t=team(); t.favs=t.favs||[]; const i=t.favs.indexOf(d.id); if(i>=0) t.favs.splice(i,1); else t.favs.push(d.id); },
   autoPlan(){ const f=curFx(); if(!safeReplan(f))return; ui.sel=null; toast('Plan rebuilt'); },
   block(d){ ui.block=+d.b; ui.sel=null; },
