@@ -379,7 +379,9 @@ function sheetOpponent(){
 }
 function sheetCoachingNotes(){const f=fixture(ui.sheet.id),n=f.coachingNotes||{};return `<h2>Coaching notes · ${esc(f.opponent)}</h2><label class="f">What went well<textarea class="input" id="noteGood" rows="3">${esc(n.good||'')}</textarea></label><label class="f">What needs improving<textarea class="input" id="noteImprove" rows="3">${esc(n.improve||'')}</textarea></label><label class="f">Focus for next training<textarea class="input" id="noteTraining" rows="3">${esc(n.training||'')}</textarea></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveNotes">Save notes</button></div>`;}
 
-const fitIds = fx => fx.available.filter(id=>player(id)&&!(fx.injured||[]).includes(id));
+const fitIds = fx => fx.available.filter(id=>player(id)&&!(fx.injured||[]).includes(id)&&fx.prefs?.[id]!=='unavailable');
+function attendanceStatus(f,pid){if(f.status!=='played'||f.imported||!f.score)return null;if(f.match?.stints?.some(x=>x.pid===pid&&((x.to??f.match.totalSec??0)>x.from)))return 'Played';if((f.injured||[]).includes(pid))return 'Injured';if(f.prefs?.[pid]==='unavailable')return 'Unavailable';if(!f.available?.includes(pid))return 'Not selected';return 'Available but unused';}
+function attendanceRows(pid){return fixtures().filter(f=>f.status==='played'&&!f.imported&&f.score&&f.attendanceTracked!==false).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(f=>({f,status:attendanceStatus(f,pid)})).filter(x=>x.status);}
 
 /* ============================ Helpers ============================ */
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -724,6 +726,7 @@ function vPlayerProfile(){
  <div class="card"><div class="row" style="align-items:center;gap:18px">${photo}<div><h2>${esc(p.name)}</h2><div class="muted">#${p.number??'—'} · ${esc((p.pos||[]).join(' / ')||'Position not set')}</div><span class="pill">${p.active===false?'Former player':'Active squad'}</span></div></div></div>
  <div class="card stack"><div class="eyebrow">Career statistics</div><div class="grid2">${[['Appearances',career?.apps||0],['Goals',career?.goals||0],['Assists',career?.assists||0],['Man of the match',career?.motm||0]].map(([k,v])=>'<div style="padding:12px;background:var(--surface-2);border-radius:10px"><div class="stat-n num">'+v+'</div><div class="small muted">'+k+'</div></div>').join('')}</div><p class="small muted">Career totals include your manually entered opening records plus new match statistics.</p></div>
  <div class="card stack"><div class="eyebrow">Season-by-season · tracked matches</div>${summary.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Season</th><th>Apps</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead><tbody>'+summary.map(r=>'<tr><td>'+esc(r.y)+'</td><td>'+r.apps+'</td><td>'+r.goals+'</td><td>'+r.assists+'</td><td>'+r.motm+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Season records will build as you complete and record new matches. Historical opening totals are included in career figures only.</p>'}</div>
+ <div class="card stack"><div class="eyebrow">Match attendance · tracked fixtures</div>${(()=>{const rows=attendanceRows(p.id);const counts={};rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);return '<div class="grid2">'+[['Played',counts.Played||0],['Missed',(counts.Injured||0)+(counts.Unavailable||0)+(counts['Not selected']||0)],['Injured',counts.Injured||0],['Available unused',counts['Available but unused']||0]].map(([k,n])=>'<div style="padding:10px;background:var(--surface-2);border-radius:10px"><b>'+n+'</b><div class="small muted">'+k+'</div></div>').join('')+'</div>'+(rows.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Fixture</th><th>Status</th></tr></thead><tbody>'+rows.map(({f,status})=>'<tr><td>'+esc(fmtDate(f.date))+' · '+esc(f.opponent)+'</td><td>'+esc(status)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Attendance builds when new matches are completed.</p>');})()}</div>
  <div class="card stack"><div class="eyebrow">Coaching notes</div><p style="white-space:pre-wrap;margin:0">${esc(p.notes||'No notes recorded yet.')}</p><button class="btn sm" data-a="editPlayer" data-id="${p.id}">Edit notes</button></div>
  </div>`;
 }
@@ -807,17 +810,17 @@ function vFixture(){
   const pm=planMinutes(fx); const {targets}=targetsFor(fx,fitIds(fx));
   const full=fx.periods*fx.periodMins;
   const style=ui.styleTab||F.style;
-  const prefLabel={'':'Normal',more:'More time',limited:'Limited',start:'Must start',must:'Must play',injured:'Injured'};
+  const prefLabel={'':'Normal',more:'More time',limited:'Limited',start:'Must start',must:'Must play',injured:'Injured',unavailable:'Unavailable'};
   return `<div class="stack">
    <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="fixtures">‹ Fixtures</button><button class="btn sm" data-a="editFx" data-id="${fx.id}">Edit details</button></div>
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
    <div class="muted small" style="margin-top:4px">${esc(fx.competition||'')} · ${fx.format}v${fx.format} · ${fx.periods}×${fx.periodMins} min${fx.windows>1?` · subs every ${blockMins(fx)} min`:''}</div></div>
 
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fx.available.length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
-     <div class="list">${ps.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||'');
+     <div class="list">${ps.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||(!on?'unavailable':''));
        return `<div class="li" style="gap:10px;flex-wrap:wrap"><button class="shirt" style="border:0;${on?'':'background:var(--surface-2);color:var(--muted)'}" data-a="toggleAvail" data-id="${p.id}" aria-pressed="${on}" aria-label="Toggle ${esc(p.name)} available">${p.number??''}</button>
          <button class="main" style="border:0;background:none;text-align:left;padding:0;${on?'':'color:var(--muted);text-decoration:line-through'}" data-a="toggleAvail" data-id="${p.id}"><span class="title">${esc(p.name)}</span> ${on&&inj?'<span class="pill" style="background:var(--bad);color:#fff">Injured</span>':''} <span class="small muted">${p.pos.join(' · ')}</span></button>
-         ${on?`<select class="input" style="width:auto;max-width:150px;min-height:36px;padding:4px 8px;font-size:13px;margin-left:auto" data-a="pref" data-id="${p.id}">${Object.entries(prefLabel).map(([k,l])=>`<option value="${k}" ${pr===k?'selected':''}>${l}</option>`).join('')}</select>${pr==='must'? `<div style="flex-basis:100%;width:100%;padding:6px 0 6px 48px"><div class="small muted">Must play in:</div>${Array.from({length:fx.periods},(_,i)=>`<label style="display:inline-block;margin:6px"><input type="checkbox" data-a="mustPeriod" data-id="${p.id}" data-p="${i}" ${(fx.mustPeriods?.[p.id]||[]).includes(i)?'checked':''}>${periodShort(fx,i)}</label>`).join('')}</div>`:''}`:'<span class="small muted">Unavailable</span>'}</div>`;}).join('')}</div>
+         ${`<select class="input" style="width:auto;max-width:150px;min-height:36px;padding:4px 8px;font-size:13px;margin-left:auto" data-a="pref" data-id="${p.id}">${Object.entries(prefLabel).map(([k,l])=>`<option value="${k}" ${pr===k?'selected':''}>${l}</option>`).join('')}</select>${pr==='must'? `<div style="flex-basis:100%;width:100%;padding:6px 0 6px 48px"><div class="small muted">Must play in:</div>${Array.from({length:fx.periods},(_,i)=>`<label style="display:inline-block;margin:6px"><input type="checkbox" data-a="mustPeriod" data-id="${p.id}" data-p="${i}" ${(fx.mustPeriods?.[p.id]||[]).includes(i)?'checked':''}>${periodShort(fx,i)}</label>`).join('')}</div>`:''}`}</div>`;}).join('')}</div>
      ${ruleConflicts(fx).length?`<div class="alert">Selection conflict: ${ruleConflicts(fx).map(esc).join('; ')}</div>`:''}
      ${Array.from({length:fx.periods},(_,i)=>`<div class="small muted">${periodShort(fx,i)}: ${requiredForBlock(fx,i*fx.windows).length}/${fx.format} mandatory</div>`).join('')}
      ${fx.available.length<fx.format?`<div class="alert">Only ${fx.available.length} available for ${fx.format}v${fx.format}. Some positions will be empty.</div>`:''}
@@ -888,6 +891,7 @@ function vStats(){
   const recent=[...st.fxs].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).reverse();
   return `<div class="stack">
    <h2>Stats</h2>
+   <div class="card stack"><div class="eyebrow">Team attendance · completed tracked fixtures</div><div class="scroll-x"><table class="mtab"><thead><tr><th>Player</th><th>Played</th><th>Missed</th><th>Injured</th><th>Available unused</th><th>Attendance</th></tr></thead><tbody>${squad().map(p=>{const rr=attendanceRows(p.id).filter(x=>!ui.filter?.season||season(x.f.date)===ui.filter.season);const n=k=>rr.filter(x=>x.status===k).length;const played=n('Played'),missed=n('Injured')+n('Unavailable')+n('Not selected'),eligible=played+missed;return '<tr><td>'+esc(p.name)+'</td><td>'+played+'</td><td>'+missed+'</td><td>'+n('Injured')+'</td><td>'+n('Available but unused')+'</td><td>'+(eligible?Math.round(played/eligible*100)+'%':'—')+'</td></tr>';}).join('')}</tbody></table></div><p class="small muted">Future fixtures and imported historical results without player attendance are excluded. Available but unused is not counted as a missed game.</p></div>
    <div class="grid2"><select class="input" data-a="filter" data-k="season"><option value="">All seasons</option>${seasons.map(s=>`<option ${ui.filter?.season===s?'selected':''}>${s}</option>`).join('')}</select>
    <select class="input" data-a="filter" data-k="comp"><option value="">All competitions</option>${comps.map(s=>`<option ${ui.filter?.comp===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
    <div class="card stack"><div class="eyebrow">Team record</div>
@@ -1206,9 +1210,9 @@ const A = {
     rememberOpponent(opp);ui.sheet=null; toast('Fixture saved');
   },
   delFx(d){ db.fixtures=db.fixtures.filter(f=>f.id!==d.id); ui.sheet=null; ui.confirm=null; ui.view='fixtures'; toast('Fixture deleted'); },
-  toggleAvail(d){ const f=curFx(); const i=f.available.indexOf(d.id); if(i>=0) f.available.splice(i,1); else f.available.push(d.id); autoPlan(f,false); },
-  availAll(){ const f=curFx(); f.available=squad().map(p=>p.id); autoPlan(f,false); },
-  availNone(){ const f=curFx(); f.available=[]; autoPlan(f,false); },
+  toggleAvail(d){ const f=curFx(); const i=f.available.indexOf(d.id); f.prefs=f.prefs||{}; if(i>=0){f.available.splice(i,1);f.prefs[d.id]='unavailable';} else {f.available.push(d.id);delete f.prefs[d.id];f.injured=(f.injured||[]).filter(x=>x!==d.id);} autoPlan(f,false); },
+  availAll(){ const f=curFx(); f.available=squad().map(p=>p.id).filter(id=>!(f.injured||[]).includes(id));f.prefs=f.prefs||{};Object.keys(f.prefs).forEach(id=>{if(f.prefs[id]==='unavailable')delete f.prefs[id]}); autoPlan(f,false); },
+  availNone(){ const f=curFx(); f.prefs=f.prefs||{};f.available.forEach(id=>{if(!(f.injured||[]).includes(id))f.prefs[id]='unavailable'});f.available=[]; autoPlan(f,false); },
   styleTab(d){ ui.styleTab=d.s; },
   setFormation(d){ const f=curFx(); f.formationId=d.id; ui.styleTab=null; autoPlan(f,false); },
   fav(d){ const t=team(); t.favs=t.favs||[]; const i=t.favs.indexOf(d.id); if(i>=0) t.favs.splice(i,1); else t.favs.push(d.id); },
@@ -1399,7 +1403,7 @@ document.addEventListener('change',e=>{
   if(a==='mf'||a==='gr'){ draftField(el); if(el.dataset.k==='us'||el.dataset.k==='pid') setTimeout(renderSheet); return; }
   if(a==='mustPeriod'){const f=curFx(),id=el.dataset.id,p=+el.dataset.p;f.mustPeriods=f.mustPeriods||{};const old=f.mustPeriods[id]||[];f.mustPeriods[id]=el.checked?[...new Set([...old,p])]:old.filter(x=>x!==p);if(ruleConflicts(f).length){f.mustPeriods[id]=old;toast('Period already has maximum mandatory players');}else safeReplan(f);}
   else if(a==='pref'){ const f=curFx(), id=el.dataset.id; f.prefs=f.prefs||{}; f.injured=(f.injured||[]).filter(x=>x!==id);
-    if(el.value==='injured'){ f.injured.push(id); delete f.prefs[id]; } else if(el.value) f.prefs[id]=el.value; else delete f.prefs[id];
+    if(el.value==='injured'){ f.injured.push(id); f.available=f.available.filter(x=>x!==id); delete f.prefs[id]; } else if(el.value==='unavailable'){f.available=f.available.filter(x=>x!==id);f.prefs[id]='unavailable';} else {if(!f.available.includes(id))f.available.push(id);if(el.value)f.prefs[id]=el.value;else delete f.prefs[id];}
     if(el.value!=='must'&&f.mustPeriods)delete f.mustPeriods[id];safeReplan(f); }
   else if(a==='filter'){ ui.filter=Object.assign({},ui.filter,{[el.dataset.k]:el.value}); }
   else if(a==='teamField'){ team()[el.dataset.k]=el.value; }
