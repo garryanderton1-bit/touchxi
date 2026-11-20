@@ -1410,6 +1410,7 @@ document.addEventListener('change',e=>{
     if(el.value==='injured'){ f.injured.push(id); f.available=f.available.filter(x=>x!==id); delete f.prefs[id]; } else if(el.value==='unavailable'){f.available=f.available.filter(x=>x!==id);f.prefs[id]='unavailable';} else {if(!f.available.includes(id))f.available.push(id);if(el.value)f.prefs[id]=el.value;else delete f.prefs[id];}
     if(el.value!=='must'&&f.mustPeriods)delete f.mustPeriods[id];safeReplan(f); }
   else if(a==='filter'){ ui.filter=Object.assign({},ui.filter,{[el.dataset.k]:el.value}); }
+  else if(a==='defaultFormation'){team().defaultFormationId=el.value||null;toast('Default formation saved');}
   else if(a==='teamField'){ team()[el.dataset.k]=el.value; }
   else if(a==='teamNum'){ team()[el.dataset.k]=+el.value; }
   else if(a==='color'){ team().colors[el.dataset.k]=el.value; }
