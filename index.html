@@ -288,6 +288,18 @@ const REAL_PLAYERS=[
  [null,'Seb',['ST','CB']],
  [null,'Will',['RB','RM']]
 ];
+const IMPORTED_UPCOMING_FIXTURES=[["S58-5","2026-11-21","Alerton Bywater","A"],["S58-6","2026-12-12","Ricall United","H"],["S58-7","2027-01-09","Ponte Cols Whites","A"],["S58-8","2027-01-16","Opponent TBC",""],["S58-9","2027-01-23","Barnby Dunn Colts","H"],["S58-10","2027-01-30","Grimethorpe LLUK","A"],["S58-11","2027-02-06","Opponent TBC",""],["S58-12","2027-02-13","Opponent TBC",""],["S58-13","2027-02-20","Ponte Cols Sharks","H"],["S58-14","2027-02-27","Hyde Park Knights","H"],["S58-15","2027-03-06","Ponte Cols Blue","A"],["S58-16","2027-03-13","Alerton Bywater","H"],["S58-17","2027-03-20","Wheatley Wanderers (TBC)","A"]];
+function importUpcomingSheet58(){
+  const t=db.teams.find(x=>/^askern miners/i.test(x.name))||db.teams[0];
+  if(!t) return;
+  db.fixtures=db.fixtures||[];
+  const existing=new Set(db.fixtures.filter(f=>f.sourceId).map(f=>f.sourceId));
+  IMPORTED_UPCOMING_FIXTURES.forEach(([sourceId,date,opponent,homeAway])=>{
+    if(existing.has(sourceId)) return;
+    if(opponent!=='Opponent TBC'&&db.fixtures.some(f=>f.teamId===t.id&&f.date===date&&(f.opponent||'').trim().toLowerCase()===opponent.toLowerCase())) return;
+    db.fixtures.push({id:uid(),sourceId,teamId:t.id,date,time:'',opponent,venue:'',homeAway,competition:'League',pitch:'',format:9,periods:t.periods||4,periodMins:t.periodMins||15,windows:t.windows||1,available:db.players.filter(p=>p.teamId===t.id&&p.active!==false).map(p=>p.id),prefs:{},formationId:null,plan:null,match:null,score:null,scorers:[],motm:null,star:null,status:'upcoming',imported:true});
+  });
+}
 const REAL_FIXTURES=[];
 function addRealData(t){
   t.name='Askern Miners U12 Red'; t.short='AM';
@@ -324,6 +336,7 @@ function load(){
       addRealData(t); }
     db.realV1=true;
   }
+  importUpcomingSheet58();
   try{ const u=JSON.parse(localStorage.getItem(STORE_KEY+'.ui')||'null'); if(u&&u.view!=='match') Object.assign(ui,{view:u.view,fxId:u.fxId}); }catch(e){}
 }
 function save(){
