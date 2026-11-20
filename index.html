@@ -800,7 +800,7 @@ function pitchHtml(F, slots, opts={}){
 function vFixture(){
   const fx=fixture(ui.fxId); if(!fx){ ui.view='fixtures'; return vFixtures(); }
   if(fx.status==='played') return vPlayed(fx);
-  const t=team(), ps=squad();
+  const t=team(), ps=squad(), confirmed=!!fx.squadConfirmed, visiblePs=confirmed?ps.filter(p=>fitIds(fx).includes(p.id)):ps;
   if(!fx.plan||fx.plan.formationId!==fx.formationId||fx.plan.blocks.length!==blockCount(fx)||fx.plan.blocks[0].slots.length!==formationById(fx.formationId)?.slots.length) autoPlan(fx,false);
   const F=formationById(fx.formationId);
   const B=blockCount(fx); ui.block=Math.min(ui.block,B-1);
@@ -816,8 +816,9 @@ function vFixture(){
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
    <div class="muted small" style="margin-top:4px">${esc(fx.competition||'')} · ${fx.format}v${fx.format} · ${fx.periods}×${fx.periodMins} min${fx.windows>1?` · subs every ${blockMins(fx)} min`:''}</div></div>
 
-   <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fx.available.length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
-     <div class="list">${ps.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||(!on?'unavailable':''));
+   <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fitIds(fx).length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
+     <div class="row between" style="flex-wrap:wrap"><span class="small muted">${confirmed?`Matchday squad confirmed · ${fitIds(fx).length} selected`:`Select who is available, then confirm the matchday squad`}</span><button class="btn ${confirmed?'':'primary'} sm" data-a="confirmSquad">${confirmed?'Edit availability':'Confirm matchday squad'}</button></div>
+     <div class="list">${visiblePs.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||(!on?'unavailable':''));
        return `<div class="li" style="gap:10px;flex-wrap:wrap"><button class="shirt" style="border:0;${on?'':'background:var(--surface-2);color:var(--muted)'}" data-a="toggleAvail" data-id="${p.id}" aria-pressed="${on}" aria-label="Toggle ${esc(p.name)} available">${p.number??''}</button>
          <button class="main" style="border:0;background:none;text-align:left;padding:0;${on?'':'color:var(--muted);text-decoration:line-through'}" data-a="toggleAvail" data-id="${p.id}"><span class="title">${esc(p.name)}</span> ${on&&inj?'<span class="pill" style="background:var(--bad);color:#fff">Injured</span>':''} <span class="small muted">${p.pos.join(' · ')}</span></button>
          ${`<select class="input" style="width:auto;max-width:150px;min-height:36px;padding:4px 8px;font-size:13px;margin-left:auto" data-a="pref" data-id="${p.id}">${Object.entries(prefLabel).map(([k,l])=>`<option value="${k}" ${pr===k?'selected':''}>${l}</option>`).join('')}</select>${pr==='must'? `<div style="flex-basis:100%;width:100%;padding:6px 0 6px 48px"><div class="small muted">Must play in:</div>${Array.from({length:fx.periods},(_,i)=>`<label style="display:inline-block;margin:6px"><input type="checkbox" data-a="mustPeriod" data-id="${p.id}" data-p="${i}" ${(fx.mustPeriods?.[p.id]||[]).includes(i)?'checked':''}>${periodShort(fx,i)}</label>`).join('')}</div>`:''}`}</div>`;}).join('')}</div>
@@ -1211,6 +1212,7 @@ const A = {
   },
   delFx(d){ db.fixtures=db.fixtures.filter(f=>f.id!==d.id); ui.sheet=null; ui.confirm=null; ui.view='fixtures'; toast('Fixture deleted'); },
   toggleAvail(d){ const f=curFx(); const i=f.available.indexOf(d.id); f.prefs=f.prefs||{}; if(i>=0){f.available.splice(i,1);f.prefs[d.id]='unavailable';} else {f.available.push(d.id);delete f.prefs[d.id];f.injured=(f.injured||[]).filter(x=>x!==d.id);} autoPlan(f,false); },
+  confirmSquad(){ const f=curFx();f.squadConfirmed=!f.squadConfirmed;toast(f.squadConfirmed?'Matchday squad confirmed':'Edit availability'); },
   availAll(){ const f=curFx(); f.available=squad().map(p=>p.id).filter(id=>!(f.injured||[]).includes(id));f.prefs=f.prefs||{};Object.keys(f.prefs).forEach(id=>{if(f.prefs[id]==='unavailable')delete f.prefs[id]}); autoPlan(f,false); },
   availNone(){ const f=curFx(); f.prefs=f.prefs||{};f.available.forEach(id=>{if(!(f.injured||[]).includes(id))f.prefs[id]='unavailable'});f.available=[]; autoPlan(f,false); },
   styleTab(d){ ui.styleTab=d.s; },
