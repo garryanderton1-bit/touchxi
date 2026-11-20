@@ -756,10 +756,16 @@ function vFixtures(){
   const fxs=fixtures();
   const up=fxs.filter(f=>f.status!=='played').sort((a,b)=>a.date.localeCompare(b.date));
   const done=fxs.filter(f=>f.status==='played').sort((a,b)=>b.date.localeCompare(a.date));
+  const past=ui.fixturesTab==='past';
+  const visible=past?done:up;
   return `<div class="stack">
    <div class="row between"><h2>Fixtures</h2><div class="row"><button class="btn" data-a="importSheet">Import results</button><button class="btn primary" data-a="addFx">Add</button></div></div>
-   <div class="grid2"><button class="btn" data-a="nav" data-v="opponents">Manage opponents</button><button class="btn" data-a="nav" data-v="history">Match history</button></div><div class="card"><div class="eyebrow">Upcoming</div><div class="list">${up.map(fxRow).join('')||'<p class="muted small">Nothing scheduled.</p>'}</div></div>
-   <div class="card"><div class="eyebrow">Results</div><div class="list">${done.map(fxRow).join('')||'<p class="muted small">No results yet.</p>'}</div></div>
+   <div class="grid2"><button class="btn" data-a="nav" data-v="opponents">Manage opponents</button><button class="btn" data-a="nav" data-v="history">Match history</button></div>
+   <div class="seg" style="display:grid;grid-template-columns:1fr 1fr" role="group" aria-label="Fixture view">
+     <button type="button" data-a="fixturesTab" data-v="upcoming" class="${!past?'on':''}" aria-pressed="${!past}">Upcoming (${up.length})</button>
+     <button type="button" data-a="fixturesTab" data-v="past" class="${past?'on':''}" aria-pressed="${past}">Past fixtures (${done.length})</button>
+   </div>
+   <div class="card"><div class="eyebrow">${past?'Past fixtures':'Upcoming fixtures'}</div><div class="list">${visible.map(fxRow).join('')||(past?'<p class="muted small">No past fixtures yet.</p>':'<p class="muted small">Nothing scheduled.</p>')}</div></div>
   </div>`;
 }
 function sheetFixture(id){
@@ -1153,6 +1159,7 @@ function previewCSV(text){
 /* ============================ Actions ============================ */
 function curFx(){ return fixture(ui.fxId); }
 const A = {
+  fixturesTab(d){ ui.fixturesTab=d.v==='past'?'past':'upcoming'; },
   nav(d){ ui.view=d.v; ui.sel=null; ui.confirm=null; window.scrollTo(0,0); },
   openFx(d){ ui.view='fixture'; ui.fxId=d.id; ui.block=0; ui.sel=null; ui.styleTab=null; window.scrollTo(0,0); },
   addFx(){ ui.sheet={k:'fixture'}; ui.confirm=null; },
