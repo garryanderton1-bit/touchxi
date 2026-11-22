@@ -984,6 +984,7 @@ function renderMatch(){
     <div class="row between"><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="closeMatch">‹ Back</button><span class="row" style="gap:8px"><span class="small" style="opacity:.8">${fx.format}v${fx.format} · ${F.name}</span><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="alertsSheet">Alerts</button></span></div>
     <div class="sline"><div class="t r">${esc(t.name)}</div><div class="g">${m.us}–${m.them}</div><div class="t">${esc(fx.opponent)}</div></div>
     <div class="clock"><span class="per">${m.ended?'FT':periodShort(fx,m.period)}</span><span class="tm ${per>lim?'late':''}" id="clk">${mmss(per)}</span><span class="small" style="opacity:.75">/ ${fx.periodMins}:00</span></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="ask" data-k="restart">↻ Restart match</button></div>
     ${m.ended?'':`<div class="ctl">${m.running?`<button class="btn" data-a="pause">Pause</button>`:`<button class="btn go" data-a="start">${per>0?'Resume':m.period===0?'Kick off':'Start '+periodShort(fx,m.period)}</button>`}
       ${lastPeriod?`<button class="btn" data-a="ask" data-k="ft">Full time</button>`:`<button class="btn" data-a="ask" data-k="endP">End ${periodShort(fx,m.period)}</button>`}</div>
       ${m.period>0&&!m.running&&per===0?`<button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35);align-self:center" data-a="ask" data-k="back">‹ Back to ${periodShort(fx,m.period-1)} (ended by mistake)</button>`:''}`}
@@ -1261,6 +1262,7 @@ const A = {
     if(d.k==='ft') q={title:'Full time?',body:`End the match at ${m.us}–${m.them} and save the stats. You can reopen it afterwards if needed.`,yes:'Full time',act:'fullTime'};
     if(d.k==='back') q={title:`Go back to ${periodLabel(fx,m.period-1)}?`,body:`${periodLabel(fx,m.period-1)} carries on from ${mmss(m.periodActual[m.periodActual.length-1]||0)}. Goals, subs and playing time so far are kept.`,yes:`Back to ${periodShort(fx,m.period-1)}`,act:'backPeriod'};
     if(d.k==='reopen') q={title:'Reopen this match?',body:'The match goes back to live tracking where it stopped, with goals, subs and playing time kept. Press full time again when you are done.',yes:'Reopen match',act:'reopenMatch'};
+    if(d.k==='restart') q={title:'Restart this match?',body:'This will permanently clear the match clock, score, goals, substitutions, playing time and all match events, then return to Q1 with the original planned starting lineup. The fixture and squad availability will be kept. This cannot be undone.',yes:'Yes, restart match',act:'restartMatch',danger:true};
     if(d.k==='reset') q={title:'Reset to unplayed?',body:'This clears the score, goals, assists, awards, playing time and match log for this fixture. The date, opponent and venue stay. This cannot be undone.',yes:'Reset fixture',act:'resetFx',danger:true};
     if(q) ui.sheet=Object.assign({k:'ask'},q); },
   askYes(){ const a=ui.sheet.act; ui.sheet=null; return A[a]({}); },
@@ -1270,6 +1272,7 @@ const A = {
   reopenMatch(){ const fx=curFx(), m=fx.match; if(!m) return; const at=m.totalSec;
     m.stints.forEach(s=>{ if(Math.abs(s.to-at)<0.01 && m.lineup.includes(s.pid)) s.to=null; });
     m.ended=false; m.alert=null; fx.status='upcoming'; fx.score=null; ui.view='match'; replanLive(fx,m); toast('Match reopened'); },
+  restartMatch(){ const fx=curFx(); if(!fx||!fx.match)return; fx.match=newMatch(fx); fx.status='upcoming'; fx.score=null; fx.scorers=[]; fx.motm=null; fx.star=null; ui.sel=null; ui.sheet=null; ui.confirm=null; ui.view='match'; toast('Match restarted. Ready for kick off.'); },
   resetFx(){ const fx=curFx(); Object.assign(fx,{status:'upcoming',score:null,scorers:[],motm:null,star:null,match:null,plan:null,injured:[],imported:false});
     if(!fx.available.length) fx.available=squad().map(p=>p.id);
     ui.view='fixture'; ui.block=0; toast('Fixture reset. Ready to be played.'); },
