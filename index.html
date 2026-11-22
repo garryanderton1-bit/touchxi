@@ -711,7 +711,7 @@ function vSquad(){
   return `<div class="stack">
    <div class="row between"><h2>Squad <span class="muted num" style="font-size:18px">${ps.length}</span></h2><button class="btn primary" data-a="editPlayer">Add player</button></div>
    <div class="card"><div class="list">${ps.map(p=>`<button class="li" data-a="openPlayerProfile" data-id="${p.id}"><div class="shirt" style="overflow:hidden">${p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover" alt="">':(p.number??'')}</div><div class="main"><div class="title">${esc(p.name)} ${p.sample?'<span class="pill ex">Example</span>':''}</div><div class="row" style="gap:4px;margin-top:3px">${p.pos.length?p.pos.map((c,i)=>`<span class="pos ${i===0?'p1':''}">${c}</span>`).join(''):'<span class="pill">Positions not set</span>'}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">No players yet. Add your squad to start picking teams.</p>'}</div></div>
-   ${former.length?'<div class="card stack"><div class="eyebrow">Former players · '+former.length+'</div><p class="small muted">Archived players are excluded from the current squad. Tap to view or edit their history.</p><div class="list">'+former.map(p=>'<button class="li" data-a="openPlayerProfile" data-id="'+p.id+'"><div class="main"><div class="title">'+esc(p.name)+'</div><div class="small muted">'+esc(p.startSeason?seasonLabel(p.startSeason):'Start unknown')+' – '+esc(p.leavingSeason?seasonLabel(p.leavingSeason):'Leaving unknown')+'</div></div><span class="muted">›</span></button>').join('')+'</div></div>':''}
+   ${former.length?'<div class="card stack"><div class="row between"><div class="eyebrow">Former players · '+former.length+'</div><button class="btn sm" data-a="toggleFormerPlayers" aria-expanded="'+!!ui.showFormerPlayers+'">'+(ui.showFormerPlayers?'Hide':'Show')+'</button></div>'+(ui.showFormerPlayers?'<p class="small muted">Archived players are excluded from the current squad. Tap to view or edit their history.</p><div class="list">'+former.map(p=>'<button class="li" data-a="openPlayerProfile" data-id="'+p.id+'"><div class="main"><div class="title">'+esc(p.name)+'</div><div class="small muted">'+esc(p.startSeason?seasonLabel(p.startSeason):'Start unknown')+' – '+esc(p.leavingSeason?seasonLabel(p.leavingSeason):'Leaving unknown')+'</div></div><span class="muted">›</span></button>').join('')+'</div>':'')+'</div>':''}
   </div>`;
 }
 function vPlayerProfile(){
@@ -1212,6 +1212,7 @@ const A = {
   saveNotes(){const f=fixture(ui.sheet.id);f.coachingNotes={good:val('noteGood'),improve:val('noteImprove'),training:val('noteTraining')};ui.sheet=null;toast('Coaching notes saved');},
   editFx(d){ ui.sheet={k:'fixture',id:d.id}; ui.confirm=null; },
   openPlayerProfile(d){ui.profilePlayerId=d.id;ui.view='playerProfile';window.scrollTo(0,0);},
+  toggleFormerPlayers(){ui.showFormerPlayers=!ui.showFormerPlayers;},
   editPlayer(d){ ui.sheet={k:'player',id:d.id||null}; ui.confirm=null; },
   closeSheet(){ ui.sheet=null; ui.confirm=null; },
   confirm(d){ ui.confirm=d.k||null; },
