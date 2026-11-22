@@ -390,6 +390,8 @@ const mmss = s => { s=Math.max(0,Math.floor(s)); return String(Math.floor(s/60))
 const mins = s => Math.round(s/60);
 const firstName = p => p ? p.name.split(' ')[0] : '';
 const result = f => !f.score ? null : f.score.us>f.score.them?'W':f.score.us<f.score.them?'L':'D';
+const fixtureSeason = f => f.season||season(f.date);
+const seasonOptions = date => {const y=+(season(date||new Date().toISOString().slice(0,10)).slice(0,4));return Array.from({length:Math.max(6,y-2022+2)},(_,i)=>{const n=2022+i;return n+'/'+String((n+1)%100).padStart(2,'0');});};
 const season = iso => { const d=new Date(iso+'T12:00:00'); const y=d.getFullYear(), m=d.getMonth(); const s=m>=7?y:y-1; return s+'/'+String((s+1)%100).padStart(2,'0'); };
 const periodLabel = (fx,i) => fx.periods===2 ? (i===0?'1st half':'2nd half') : fx.periods===1 ? 'Match' : 'Q'+(i+1);
 const periodShort = (fx,i) => fx.periods===2 ? (i===0?'H1':'H2') : fx.periods===1 ? 'M' : 'Q'+(i+1);
@@ -609,11 +611,11 @@ function finishMatch(fx,m){
 
 /* ============================ Stats ============================ */
 function computeStats(filter){
-  const fxs=fixtures().filter(f=>f.status==='played'&&f.score).filter(f=>(!filter.season||season(f.date)===filter.season)&&(!filter.comp||f.competition===filter.comp));
+  const fxs=fixtures().filter(f=>f.status==='played'&&f.score).filter(f=>(!filter.season||fixtureSeason(f)===filter.season)&&(!filter.comp||f.competition===filter.comp));
   const ps={}; db.players.filter(p=>p.teamId===team().id).forEach(p=>ps[p.id]={p,apps:0,starts:0,subs:0,min:0,goals:0,assists:0,motm:0,star:0,pos:{}});
   const pitch={};
   // Opening totals are independent of imported match scores.
-  if(!filter.season&&!filter.comp) Object.values(ps).forEach(r=>{const b=r.p.openingStats||{};for(const k of ['apps','goals','assists','motm'])r[k]+=Math.max(0,+b[k]||0);});
+  if(!filter.comp) Object.values(ps).forEach(r=>{const b=r.p.openingStats||{};if(!filter.season){for(const k of ['apps','goals','assists','motm'])r[k]+=Math.max(0,+b[k]||0);}else r.goals+=Math.max(0,+r.p.historicalGoalsBySeason?.[filter.season]||0);});
   const T={P:0,W:0,D:0,L:0,GF:0,GA:0};
   fxs.forEach(f=>{ T.P++; T[result(f)]++; T.GF+=f.score.us; T.GA+=f.score.them;
     if(!f.imported&&f.motm&&ps[f.motm]) ps[f.motm].motm++; if(f.star&&ps[f.star]) ps[f.star].star++;
@@ -711,10 +713,10 @@ function vPlayerProfile(){
  const p=player(ui.profilePlayerId);if(!p)return '<div class="card">Player not found. <button class="btn" data-a="nav" data-v="squad">Back to squad</button></div>';
  const career=computeStats({}).players.find(r=>r.p.id===p.id);
  const recorded=fixtures().filter(f=>f.status==='played'&&!f.imported&&f.score);
- const years=[...new Set(recorded.map(f=>f.season||season(f.date)))].sort().reverse();
+ const years=[...new Set([...recorded.map(f=>fixtureSeason(f)),...Object.keys(p.historicalGoalsBySeason||{})])].sort().reverse();
  const summary=years.map(y=>{
-  const games=recorded.filter(f=>(f.season||season(f.date))===y);
-  const goals=games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length,0);
+  const games=recorded.filter(f=>(fixtureSeason(f))===y);
+  const goals=(+p.historicalGoalsBySeason?.[y]||0)+games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length,0);
   const assists=games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.assist===p.id).length,0);
   const motm=games.filter(f=>f.motm===p.id).length;
   const apps=games.filter(f=>f.match?.stints?.some(x=>x.pid===p.id)).length;
@@ -725,7 +727,7 @@ function vPlayerProfile(){
  <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="squad">‹ Squad</button><button class="btn primary sm" data-a="editPlayer" data-id="${p.id}">Edit profile</button></div>
  <div class="card"><div class="row" style="align-items:center;gap:18px">${photo}<div><h2>${esc(p.name)}</h2><div class="muted">#${p.number??'—'} · ${esc((p.pos||[]).join(' / ')||'Position not set')}</div><span class="pill">${p.active===false?'Former player':'Active squad'}</span></div></div></div>
  <div class="card stack"><div class="eyebrow">Career statistics</div><div class="grid2">${[['Appearances',career?.apps||0],['Goals',career?.goals||0],['Assists',career?.assists||0],['Man of the match',career?.motm||0]].map(([k,v])=>'<div style="padding:12px;background:var(--surface-2);border-radius:10px"><div class="stat-n num">'+v+'</div><div class="small muted">'+k+'</div></div>').join('')}</div><p class="small muted">Career totals include your manually entered opening records plus new match statistics.</p></div>
- <div class="card stack"><div class="eyebrow">Season-by-season · tracked matches</div>${summary.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Season</th><th>Apps</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead><tbody>'+summary.map(r=>'<tr><td>'+esc(r.y)+'</td><td>'+r.apps+'</td><td>'+r.goals+'</td><td>'+r.assists+'</td><td>'+r.motm+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Season records will build as you complete and record new matches. Historical opening totals are included in career figures only.</p>'}</div>
+ <div class="card stack"><div class="eyebrow">Season-by-season · historical + tracked</div>${summary.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Season</th><th>Apps</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead><tbody>'+summary.map(r=>'<tr><td>'+esc(r.y)+'</td><td>'+r.apps+'</td><td>'+r.goals+'</td><td>'+r.assists+'</td><td>'+r.motm+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Season records will build as you complete and record new matches. Allocate historical goals by season in Edit profile.</p>'}</div>
  <div class="card stack"><div class="eyebrow">Match attendance · tracked fixtures</div>${(()=>{const rows=attendanceRows(p.id);const counts={};rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);return '<div class="grid2">'+[['Played',counts.Played||0],['Missed',(counts.Injured||0)+(counts.Unavailable||0)+(counts['Not selected']||0)],['Injured',counts.Injured||0],['Available unused',counts['Available but unused']||0]].map(([k,n])=>'<div style="padding:10px;background:var(--surface-2);border-radius:10px"><b>'+n+'</b><div class="small muted">'+k+'</div></div>').join('')+'</div>'+(rows.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Fixture</th><th>Status</th></tr></thead><tbody>'+rows.map(({f,status})=>'<tr><td>'+esc(fmtDate(f.date))+' · '+esc(f.opponent)+'</td><td>'+esc(status)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Attendance builds when new matches are completed.</p>');})()}</div>
  <div class="card stack"><div class="eyebrow">Coaching notes</div><p style="white-space:pre-wrap;margin:0">${esc(p.notes||'No notes recorded yet.')}</p><button class="btn sm" data-a="editPlayer" data-id="${p.id}">Edit notes</button></div>
  </div>`;
@@ -735,13 +737,14 @@ function sheetPlayer(id){
   const sel=(i)=>`<select class="input" id="pp${i}"><option value="">${i?'None':'Choose'}</option>${POS.map(c=>`<option value="${c}" ${p.pos[i]===c?'selected':''}>${c} · ${POS_NAME[c]}</option>`).join('')}</select>`;
   const st=id?computeStats({}).players.find(r=>r.p.id===id):null;
   const history=id?fixtures().filter(f=>f.status==='played'&&!f.imported&&(f.scorers||[]).some(g=>g.pid===id)).sort((a,b)=>b.date.localeCompare(a.date)):[];
-  const bySeason={};history.forEach(f=>{const k=f.season||season(f.date);bySeason[k]=(bySeason[k]||0)+(f.scorers||[]).filter(g=>g.pid===id).length;});
+  const bySeason={...(p.historicalGoalsBySeason||{})};history.forEach(f=>{const k=fixtureSeason(f);bySeason[k]=(bySeason[k]||0)+(f.scorers||[]).filter(g=>g.pid===id).length;});
   return `<h2>${id?'Edit player':'Add player'}</h2>
    <div class="grid2" style="grid-template-columns:1fr 90px"><label class="f">Name<input class="input" id="pName" value="${esc(p.name)}" autocomplete="off"></label><label class="f">Number<input class="input num" id="pNum" type="number" inputmode="numeric" value="${esc(p.number)}"></label></div>
    <label class="f">1st position${sel(0)}</label><label class="f">2nd position${sel(1)}</label><label class="f">3rd position${sel(2)}</label>
    <label class="f">Notes<input class="input" id="pNotes" value="${esc(p.notes||'')}" placeholder="e.g. quick, left-footed"></label>
    <div class="card stack"><b>Player photo</b>${p.photo?'<img src="'+p.photo+'" alt="Player photo" style="width:100px;height:100px;object-fit:cover;border-radius:50%">':''}<input type="file" id="playerPhotoFile" accept="image/*" aria-label="Upload player photo"><span class="small muted">Photo stays in this device's app data and backups.</span></div>
    <div class="card stack"><b>Opening career totals</b><p class="small muted">Enter confirmed totals from before tracking new games. New match stats add automatically.</p><div class="grid2">${[['apps','Appearances'],['goals','Goals'],['assists','Assists'],['motm','MOTM']].map(([k,l])=>'<label class="f">'+l+'<input class="input" type="number" min="0" id="opening_'+k+'" value="'+(p.openingStats?.[k]??0)+'"></label>').join('')}</div></div>
+   <div class="card stack"><b>Historical goals by season</b><p class="small muted">Allocate past goals by season. Unallocated goals still count towards career totals.</p><div class="grid2">${[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),...Object.keys(p.historicalGoalsBySeason||{})])].sort().map(y=>'<label class="f">'+esc(y)+'<input class="input" type="number" min="0" data-historical-season="'+esc(y)+'" value="'+(p.historicalGoalsBySeason?.[y]||0)+'"></label>').join('')}</div><label class="f">Unallocated historical goals<input class="input" type="number" min="0" id="opening_unallocated" value="${p.historicalUnallocatedGoals??Math.max(0,(p.openingStats?.goals||0)-Object.values(p.historicalGoalsBySeason||{}).reduce((a,b)=>a+(+b||0),0))}"></label></div>
    ${st?`<div class="small muted">Career totals include opening stats and tracked matches.</div><div class="kpis num"><div><div class="stat-n">${st.apps}</div><div class="small muted">Apps</div></div><div><div class="stat-n">${Math.round(st.min)}</div><div class="small muted">Mins</div></div><div><div class="stat-n">${st.goals}</div><div class="small muted">Goals</div></div><div><div class="stat-n">${st.assists}</div><div class="small muted">Assists</div></div></div>`:''}
    ${id?`<div class="card stack"><b>Career goals by season</b>${Object.entries(bySeason).sort().map(([s,n])=>`<div class="row between"><span>${esc(s)}</span><b>${n}</b></div>`).join('')||'<p class="muted small">No goals recorded</p>'}<b>Scoring matches</b>${history.map(f=>`<div class="small">${esc(f.date)} · ${esc(f.opponent)} · ${(f.scorers||[]).filter(g=>g.pid===id).length} goal(s) · ${f.format}v${f.format}</div>`).join('')||'<p class="muted small">None recorded</p>'}</div>`:''}
    <div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="savePlayer" data-id="${id||''}">Save</button></div>
@@ -752,7 +755,7 @@ function sheetPlayer(id){
 function fxRow(f){
   const d=new Date(f.date+'T12:00:00'); const r=result(f);
   return `<button class="li fx" data-a="openFx" data-id="${f.id}"><div class="date"><b class="num">${d.getDate()}</b><span>${d.toLocaleDateString('en-GB',{month:'short'})}</span></div>
-    <div class="main"><div class="title">${f.homeAway==='A'?'@ ':''}${esc(f.opponent)}</div><div class="small muted">${esc(f.competition||'')} · ${f.format}v${f.format}${f.pitch?' · '+esc(f.pitch):''}${f.sample?' · example':''}${f.match&&!f.match.ended?' · <b style="color:var(--team-2)">live</b>':''}</div></div>
+    <div class="main"><div class="title">${f.homeAway==='A'?'@ ':''}${esc(f.opponent)}</div><div class="small muted">${esc(f.competition||'')} · ${esc(fixtureSeason(f))} · ${f.format}v${f.format}${f.pitch?' · '+esc(f.pitch):''}${f.sample?' · example':''}${f.match&&!f.match.ended?' · <b style="color:var(--team-2)">live</b>':''}</div></div>
     ${f.score?`<span class="pill ${r} num">${f.score.us}–${f.score.them}</span>`:'<span class="muted">›</span>'}</button>`;
 }
 function vFixtures(){
@@ -777,6 +780,7 @@ function sheetFixture(id){
    <label class="f">Opponent<input class="input" id="fOpp" value="${esc(f.opponent)}" list="oppList" autocomplete="off"></label>
    <datalist id="oppList">${opponentNames().map(o=>`<option value="${esc(o)}">`).join('')}</datalist><p class="small muted" style="margin:0">Choose a saved opponent or type a new name.</p>
    <div class="grid2"><label class="f">Date<input class="input" type="date" id="fDate" value="${esc(f.date)}"></label><label class="f">Kick-off<input class="input" type="time" id="fTime" value="${esc(f.time)}"></label></div>
+   <label class="f">Season<select class="input" id="fSeason">${[...new Set([...seasonOptions(f.date),f.season||season(f.date)])].sort().map(y=>'<option value="'+esc(y)+'" '+((f.season||season(f.date))===y?'selected':'')+'>'+esc(y)+'</option>').join('')}</select></label>
    <div class="grid2"><label class="f">Home / away<select class="input" id="fHA"><option value="H" ${f.homeAway==='H'?'selected':''}>Home</option><option value="A" ${f.homeAway==='A'?'selected':''}>Away</option><option value="N" ${f.homeAway==='N'?'selected':''}>Neutral</option></select></label><label class="f">Competition<input class="input" id="fComp" value="${esc(f.competition)}" list="compList"></label></div>
    <datalist id="compList">${[...new Set(['League','Cup','Friendly','Tournament',...fixtures().map(x=>x.competition).filter(Boolean)])].map(o=>`<option value="${esc(o)}">`).join('')}</datalist>
    <div class="grid2"><label class="f">Venue<input class="input" id="fVenue" value="${esc(f.venue)}"></label><label class="f">Pitch type<select class="input" id="fPitch"><option value="">Not set</option>${PITCHES.map(x=>`<option ${f.pitch===x?'selected':''}>${x}</option>`).join('')}</select></label></div>
@@ -1199,15 +1203,17 @@ const A = {
     const pos=[val('pp0'),val('pp1'),val('pp2')].filter(Boolean).filter((c,i,a)=>a.indexOf(c)===i);
     const num=val('pNum')===''?null:+val('pNum');
     const openingStats=Object.fromEntries(['apps','goals','assists','motm'].map(k=>[k,Math.max(0,parseInt(val('opening_'+k))||0)]));
-    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,notes:val('pNotes'),openingStats,active:true,sample:false}); }
-    else { const p={id:uid(),teamId:team().id,name,number:num,pos,notes:val('pNotes'),openingStats}; db.players.push(p);
+    const historicalGoalsBySeason={};document.querySelectorAll('[data-historical-season]').forEach(el=>{const n=Math.max(0,parseInt(el.value)||0);if(n)historicalGoalsBySeason[el.dataset.historicalSeason]=n;});
+    const historicalUnallocatedGoals=Math.max(0,parseInt(val('opening_unallocated'))||0);openingStats.goals=historicalUnallocatedGoals+Object.values(historicalGoalsBySeason).reduce((a,b)=>a+b,0);
+    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,notes:val('pNotes'),openingStats,historicalGoalsBySeason,historicalUnallocatedGoals,active:true,sample:false}); }
+    else { const p={id:uid(),teamId:team().id,name,number:num,pos,notes:val('pNotes'),openingStats,historicalGoalsBySeason,historicalUnallocatedGoals}; db.players.push(p);
       fixtures().filter(f=>f.status!=='played'&&!f.match).forEach(f=>{f.available.push(p.id); f.plan=null;}); }
     ui.sheet=null; toast('Saved');
   },
   delPlayer(d){ player(d.id).active=false; fixtures().forEach(f=>{ if(f.status!=='played'&&!f.match){ f.available=f.available.filter(x=>x!==d.id); f.plan=null; } }); ui.sheet=null; ui.confirm=null; toast('Player archived; historical stats preserved'); },
   saveFx(d){
     const opp=val('fOpp').trim(); if(!opp){ toast('Add the opponent'); return 'keep'; }
-    const o={opponent:opp,date:val('fDate'),time:val('fTime'),homeAway:val('fHA'),competition:val('fComp'),venue:val('fVenue'),pitch:val('fPitch'),format:+val('fFmt'),periods:+val('fPer'),periodMins:Math.max(1,+val('fMins')||10),windows:+val('fWin')};
+    const o={opponent:opp,date:val('fDate'),season:val('fSeason'),time:val('fTime'),homeAway:val('fHA'),competition:val('fComp'),venue:val('fVenue'),pitch:val('fPitch'),format:+val('fFmt'),periods:+val('fPer'),periodMins:Math.max(1,+val('fMins')||10),windows:+val('fWin')};
     if(d.id){ const f=fixture(d.id); const changed=f.format!==o.format||f.periods!==o.periods||f.windows!==o.windows||f.periodMins!==o.periodMins; Object.assign(f,o,{sample:false}); if(changed&&!f.match) f.plan=null; }
     else { const f=Object.assign({id:uid(),teamId:team().id,available:squad().map(p=>p.id),prefs:{},formationId:formationById(team().defaultFormationId)?.format===o.format?team().defaultFormationId:null,plan:null,match:null,score:null,scorers:[],status:'upcoming'},o); db.fixtures.push(f); ui.view='fixture'; ui.fxId=f.id; ui.block=0; }
     rememberOpponent(opp);ui.sheet=null; toast('Fixture saved');
