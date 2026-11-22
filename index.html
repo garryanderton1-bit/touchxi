@@ -884,6 +884,7 @@ function vPlayed(fx){
      ${fx.extraTime?.played||fx.penalties?.taken?`<div class="small muted" style="margin-top:8px">FT ${fx.fullTimeScore?.us??fx.score.us}–${fx.fullTimeScore?.them??fx.score.them}${fx.extraTime?.played?' · AET '+fx.score.us+'–'+fx.score.them:''}${fx.penalties?.taken?' · Pens '+fx.penalties.us+'–'+fx.penalties.them:''}</div>`:''}
      <div style="margin-top:8px"><span class="pill ${r}">${{W:'Win',D:'Draw',L:'Defeat'}[r]}</span> ${fx.imported?'<span class="pill ex">Imported</span>':''}</div></div>
     ${fx.penalties?.taken?`<div class="card stack"><div class="eyebrow">Penalty shootout</div><b>${fx.penalties.us}–${fx.penalties.them}</b>${(fx.penalties.kicks||[]).map(k=>'<div>'+esc(player(k.pid)?.name||'Unknown')+' — '+(k.scored?'Scored':'Missed')+'</div>').join('')}</div>`:''}
+    <div class="card stack"><div class="row between"><div class="eyebrow">Disciplinary cards</div><button class="btn sm primary" data-a="addCard" data-id="${fx.id}">+ Card</button></div>${(fx.cards||[]).map(c=>'<button class="li" data-a="editCard" data-id="'+fx.id+'" data-card="'+c.id+'"><span class="main">'+(c.colour==='red'?'Red':'Yellow')+' · '+(c.side==='them'?'Opposition: '+esc(c.opponentPlayer||'Unspecified'):esc(player(c.pid)?.name||'Our player'))+(c.minute!==null&&c.minute!==undefined?' · '+c.minute+' min':'')+'</span><span>Edit ›</span></button>').join('')||'<p class="small muted">No cards recorded.</p>'}</div>
     <div class="card"><div class="row between"><div class="eyebrow">Coaching notes</div><button class="btn sm" data-a="editNotes" data-id="${fx.id}">Edit notes</button></div>
     ${[['What went well',fx.coachingNotes?.good],['What needs improving',fx.coachingNotes?.improve],['Next training focus',fx.coachingNotes?.training]].map(([k,v])=>v?`<p class="small"><b>${k}</b><br>${esc(v).replace(/\\n/g,'<br>')}</p>`:'').join('')||'<p class="small muted">No coaching notes recorded yet.</p>'}</div>
     ${goalAudit(fx).needsReview?`<div class="card stack"><b>Goalscorers need review</b><p class="small muted">Match score: ${goalAudit(fx).expected} goals. Recorded scorers: ${goalAudit(fx).recorded}. Add missing scorers or opposition own goals in Match report.</p><button class="btn primary" data-a="manualResult" data-id="${fx.id}">Review goalscorers</button></div>`:''}
@@ -1029,6 +1030,7 @@ function renderMatch(){
     <div class="quick">
       <button class="btn primary" data-a="goal" ${m.ended?'disabled':''}><strong>+1</strong>Our goal</button>
       <button class="btn" data-a="oppGoal" ${m.ended?'disabled':''}><strong>+1</strong>Their goal</button>
+      <button class="btn" data-a="matchCard" ${m.ended?'disabled':''}><strong>Card</strong>Yellow / Red</button>
       <button class="btn" data-a="formSheet" ${m.ended?'disabled':''}><strong>${F.name}</strong>Formation</button>
       <button class="btn" data-a="undo" ${m.events.length?'':'disabled'}><strong>↶</strong>Undo</button>
     </div>
@@ -1339,6 +1341,17 @@ const A = {
   resetFx(){ const fx=curFx(); Object.assign(fx,{status:'upcoming',score:null,scorers:[],motm:null,star:null,match:null,plan:null,injured:[],imported:false});
     if(!fx.available.length) fx.available=squad().map(p=>p.id);
     ui.view='fixture'; ui.block=0; toast('Fixture reset. Ready to be played.'); },
+  newTraining(){ui.sheet={k:'training'};},
+  editTraining(d){ui.sheet={k:'training',id:d.id};},
+  saveTraining(){const q=ui.sheet,t=team(),date=val('trainingDate');if(!date){toast('Choose a date');return 'keep';}t.trainingSessions=t.trainingSessions||[];const present=[...document.querySelectorAll('[data-training-player]')].filter(x=>x.checked).map(x=>x.dataset.trainingPlayer),existing=t.trainingSessions.find(x=>x.id===q.id);if(existing)Object.assign(existing,{date,present});else t.trainingSessions.push({id:uid(),date,present});ui.sheet=null;toast('Training attendance saved');},
+  deleteTraining(){team().trainingSessions=(team().trainingSessions||[]).filter(x=>x.id!==ui.sheet.id);ui.sheet=null;toast('Session deleted');},
+  editHistoricalAttendance(d){ui.sheet={k:'historicalAttendance',id:d.id};},
+  saveHistoricalAttendance(){const p=player(ui.sheet.id),h={};document.querySelectorAll('[data-att-year][data-att-kind="present"]').forEach(x=>{const y=x.dataset.attYear,a=Math.max(0,parseInt(x.value)||0),b=Math.max(0,parseInt(document.querySelector('[data-att-year="'+y+'"][data-att-kind="total"]').value)||0);if(a>b){h.invalid=true;return;}if(a||b)h[y]={present:a,total:b};});if(h.invalid){toast('Attended cannot exceed sessions held');return 'keep';}p.historicalAttendance=h;ui.sheet=null;toast('Historical attendance saved');},
+  addCard(d){ui.sheet={k:'cards',id:d.id};},
+  editCard(d){ui.sheet={k:'cards',id:d.id,cardId:d.card};},
+  matchCard(){ui.sheet={k:'cards',id:ui.fxId,live:true};},
+  saveCard(){const q=ui.sheet,f=fixture(q.id),side=val('cardSide'),colour=val('cardColour'),pid=side==='us'?val('cardPlayer'):null,opponentPlayer=side==='them'?val('cardOpponent').trim():'',minute=val('cardMinute')===''?null:Number(val('cardMinute'));if(side==='us'&&!pid){toast('Select our player');return 'keep';}if(minute!==null&&(!Number.isInteger(minute)||minute<0||minute>180)){toast('Enter a valid minute');return 'keep';}f.cards=f.cards||[];const old=f.cards.find(x=>x.id===q.cardId),data={side,colour,pid,opponentPlayer,minute:minute??(q.live&&f.match?Math.floor(matchSec(f.match)/60):null)};if(old)Object.assign(old,data);else f.cards.push({id:uid(),...data});ui.sheet=null;toast('Card recorded');},
+  deleteCard(){const f=fixture(ui.sheet.id);f.cards=(f.cards||[]).filter(x=>x.id!==ui.sheet.cardId);ui.sheet=null;toast('Card removed');},
   goal(){ ui.sheet={k:'goal'}; },
   pickScorer(d){ ui.sheet.scorer=d.id; if(d.id==='og'){ A.pickAssist({id:''}); return; } },
   pickAssist(d){ const fx=curFx(), m=fx.match; m.us++; m.events.push({id:uid(),type:'goal',sec:matchSec(m),period:m.period,scorer:ui.sheet.scorer==='og'?null:ui.sheet.scorer,assist:d.id||null}); ui.sheet=null; toast('Goal!'); },
