@@ -391,8 +391,8 @@ const mins = s => Math.round(s/60);
 const firstName = p => p ? p.name.split(' ')[0] : '';
 const result = f => !f.score ? null : f.score.us>f.score.them?'W':f.score.us<f.score.them?'L':'D';
 const fixtureSeason = f => f.season||season(f.date);
-const seasonOptions = date => {const y=+(season(date||new Date().toISOString().slice(0,10)).slice(0,4));return Array.from({length:Math.max(6,y-2023+2)},(_,i)=>{const n=2023+i;return n+'/'+String((n+1)%100).padStart(2,'0');});};
-const seasonLabel = y => {if(!y)return '';const n=parseInt(y,10);if(!Number.isFinite(n))return y;const age=n-2023+9;return n+'/'+String(n+1)+(age>=9&&age<=16?' · U'+age:'');};
+const seasonOptions = date => {const t=team(),start=Number.isInteger(+t.u8StartYear)?+t.u8StartYear:2022,y=+(season(date||new Date().toISOString().slice(0,10)).slice(0,4));return Array.from({length:Math.max(6,y-start+2)},(_,i)=>{const n=start+i;return n+'/'+String((n+1)%100).padStart(2,'0');});};
+const seasonLabel = y => {if(!y)return '';const n=parseInt(y,10);if(!Number.isFinite(n))return y;const t=team(),start=Number.isInteger(+t.u8StartYear)?+t.u8StartYear:2022,age=n-start+8;return n+'/'+String(n+1)+(age>=8&&age<=16?' · U'+age:'');};
 const season = iso => { const d=new Date(iso+'T12:00:00'); const y=d.getFullYear(), m=d.getMonth(); const s=m>=7?y:y-1; return s+'/'+String((s+1)%100).padStart(2,'0'); };
 const periodLabel = (fx,i) => fx.periods===2 ? (i===0?'1st half':'2nd half') : fx.periods===1 ? 'Match' : 'Q'+(i+1);
 const periodShort = (fx,i) => fx.periods===2 ? (i===0?'H1':'H2') : fx.periods===1 ? 'M' : 'Q'+(i+1);
@@ -943,6 +943,7 @@ function vTeam(){
      <div class="row" style="gap:16px">${[['primary','Primary'],['secondary','Accent'],['text','Text on primary']].map(([k,l])=>`<label class="f" style="align-items:center">${l}<span class="swatch"><input type="color" value="${t.colors[k]}" data-a="color" data-k="${k}"></span></label>`).join('')}</div>
      <div class="row" style="gap:6px">${[['#1B2A4E','#FF2E93','#FFFFFF','Navy & pink'],['#C8102E','#FFFFFF','#FFFFFF','Red & white'],['#0B3D91','#FFD100','#FFFFFF','Blue & yellow'],['#111111','#F2C230','#FFFFFF','Black & amber'],['#00703C','#FFFFFF','#FFFFFF','Green & white']].map(c=>`<button class="btn sm" data-a="preset" data-c="${c.slice(0,3).join(',')}"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${c[0]}"></span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${c[1]};border:1px solid var(--line)"></span>${c[3]}</button>`).join('')}</div>
    </div>
+   <div class="card stack"><div class="eyebrow">Season age groups</div><p class="small muted">Choose the season your team was U8. TouchXI automatically calculates U9, U10 and later age groups for every fixture, player record and award. After U16 it displays the season only.</p><label class="f">Our U8 season<select class="input" data-a="u8StartYear">${Array.from({length:40},(_,i)=>2015+i).map(y=>'<option value="'+y+'" '+((t.u8StartYear??2022)===y?'selected':'')+'>'+y+'/'+(y+1)+'</option>').join('')}</select></label><div class="small muted">Current season: ${esc(seasonLabel(season(new Date().toISOString().slice(0,10))))}</div></div>
    <div class="card stack"><div class="eyebrow">Default match settings</div>
      <div class="grid3"><label class="f">Format<select class="input" data-a="teamNum" data-k="format">${FORMATS.map(n=>`<option value="${n}" ${t.format===n?'selected':''}>${n}v${n}</option>`).join('')}</select></label>
      <label class="f">Periods<select class="input" data-a="teamNum" data-k="periods">${[1,2,3,4].map(n=>`<option value="${n}" ${t.periods===n?'selected':''}>${n}</option>`).join('')}</select></label>
@@ -1439,6 +1440,7 @@ document.addEventListener('change',e=>{
   else if(a==='defaultFormation'){team().defaultFormationId=el.value||null;toast('Default formation saved');}
   else if(a==='teamField'){ team()[el.dataset.k]=el.value; }
   else if(a==='teamNum'){ team()[el.dataset.k]=+el.value; }
+  else if(a==='u8StartYear'){team().u8StartYear=+el.value;toast('Team age-group seasons updated');}
   else if(a==='color'){ team().colors[el.dataset.k]=el.value; }
   render();
 });
