@@ -615,7 +615,7 @@ function computeStats(filter){
   const ps={}; db.players.filter(p=>p.teamId===team().id).forEach(p=>ps[p.id]={p,apps:0,starts:0,subs:0,min:0,goals:0,assists:0,motm:0,star:0,pos:{}});
   const pitch={};
   // Opening totals are independent of imported match scores.
-  if(!filter.comp) Object.values(ps).forEach(r=>{const b=r.p.openingStats||{};if(!filter.season){for(const k of ['apps','goals','assists','motm'])r[k]+=Math.max(0,+b[k]||0);}else r.goals+=Math.max(0,+r.p.historicalGoalsBySeason?.[filter.season]||0);});
+  if(!filter.comp) Object.values(ps).forEach(r=>{const b=r.p.openingStats||{};if(!filter.season){for(const k of ['apps','goals','assists','motm'])r[k]+=Math.max(0,+b[k]||0);}else {r.goals+=Math.max(0,+r.p.historicalGoalsBySeason?.[filter.season]||0);r.motm+=Math.max(0,+r.p.historicalMotmBySeason?.[filter.season]||0);}});
   const T={P:0,W:0,D:0,L:0,GF:0,GA:0};
   fxs.forEach(f=>{ T.P++; T[result(f)]++; T.GF+=f.score.us; T.GA+=f.score.them;
     if(!f.imported&&f.motm&&ps[f.motm]) ps[f.motm].motm++; if(f.star&&ps[f.star]) ps[f.star].star++;
@@ -715,12 +715,12 @@ function vPlayerProfile(){
  const p=player(ui.profilePlayerId);if(!p)return '<div class="card">Player not found. <button class="btn" data-a="nav" data-v="squad">Back to squad</button></div>';
  const career=computeStats({}).players.find(r=>r.p.id===p.id);
  const recorded=fixtures().filter(f=>f.status==='played'&&!f.imported&&f.score);
- const years=[...new Set([...recorded.map(f=>fixtureSeason(f)),...Object.keys(p.historicalGoalsBySeason||{})])].sort().reverse();
+ const years=[...new Set([...recorded.map(f=>fixtureSeason(f)),...Object.keys(p.historicalGoalsBySeason||{}),...Object.keys(p.historicalMotmBySeason||{}),...(p.honours||[]).map(a=>a.season)])].filter(Boolean).sort().reverse();
  const summary=years.map(y=>{
   const games=recorded.filter(f=>(fixtureSeason(f))===y);
   const goals=(+p.historicalGoalsBySeason?.[y]||0)+games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length,0);
   const assists=games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.assist===p.id).length,0);
-  const motm=games.filter(f=>f.motm===p.id).length;
+  const motm=(+p.historicalMotmBySeason?.[y]||0)+games.filter(f=>f.motm===p.id).length;
   const apps=games.filter(f=>f.match?.stints?.some(x=>x.pid===p.id)).length;
   return {y,apps,goals,assists,motm};
  }).filter(x=>x.apps||x.goals||x.assists||x.motm);
@@ -731,10 +731,12 @@ function vPlayerProfile(){
  <div class="card"><div class="eyebrow">Time with the team</div><div style="margin-top:6px">${esc(p.startSeason||'Starting season unknown')} – ${esc(p.leavingSeason||'Present')}</div></div>
  <div class="card stack"><div class="eyebrow">Career statistics</div><div class="grid2">${[['Appearances',career?.apps||0],['Goals',career?.goals||0],['Assists',career?.assists||0],['Man of the match',career?.motm||0]].map(([k,v])=>'<div style="padding:12px;background:var(--surface-2);border-radius:10px"><div class="stat-n num">'+v+'</div><div class="small muted">'+k+'</div></div>').join('')}</div><p class="small muted">Career totals include your manually entered opening records plus new match statistics.</p></div>
  <div class="card stack"><div class="eyebrow">Season-by-season · historical + tracked</div>${summary.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Season</th><th>Apps</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead><tbody>'+summary.map(r=>'<tr><td>'+esc(r.y)+'</td><td>'+r.apps+'</td><td>'+r.goals+'</td><td>'+r.assists+'</td><td>'+r.motm+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Season records will build as you complete and record new matches. Allocate historical goals by season in Edit profile.</p>'}</div>
+ <div class="card stack"><div class="row between"><div class="eyebrow">Awards & trophies</div><button class="btn sm primary" data-a="addHonour" data-id="${p.id}">+ Add</button></div>${(p.honours||[]).length?(p.honours||[]).slice().sort((a,b)=>b.season.localeCompare(a.season)).map(a=>'<div class="row between" style="gap:8px"><div><b>'+esc(a.name)+'</b><div class="small muted">'+esc(a.season)+' · '+esc(a.type)+'</div></div><button class="btn sm" data-a="editHonour" data-id="'+p.id+'" data-hid="'+a.id+'">Edit</button></div>').join(''):'<p class="small muted">No awards or trophies recorded yet.</p>'}</div>
  <div class="card stack"><div class="eyebrow">Match attendance · tracked fixtures</div>${(()=>{const rows=attendanceRows(p.id);const counts={};rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);return '<div class="grid2">'+[['Played',counts.Played||0],['Missed',(counts.Injured||0)+(counts.Unavailable||0)+(counts['Not selected']||0)],['Injured',counts.Injured||0],['Available unused',counts['Available but unused']||0]].map(([k,n])=>'<div style="padding:10px;background:var(--surface-2);border-radius:10px"><b>'+n+'</b><div class="small muted">'+k+'</div></div>').join('')+'</div>'+(rows.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Fixture</th><th>Status</th></tr></thead><tbody>'+rows.map(({f,status})=>'<tr><td>'+esc(fmtDate(f.date))+' · '+esc(f.opponent)+'</td><td>'+esc(status)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Attendance builds when new matches are completed.</p>');})()}</div>
  <div class="card stack"><div class="eyebrow">Coaching notes</div><p style="white-space:pre-wrap;margin:0">${esc(p.notes||'No notes recorded yet.')}</p><button class="btn sm" data-a="editPlayer" data-id="${p.id}">Edit notes</button></div>
  </div>`;
 }
+function sheetHonour(){const q=ui.sheet,p=player(q.id),h=(p.honours||[]).find(x=>x.id===q.hid)||{},ys=[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),h.season].filter(Boolean))].sort();return '<h2>'+(q.hid?'Edit':'Add')+' award or trophy</h2><label class="f">Type<select class="input" id="honourType"><option value="Award" '+(h.type!=='Trophy'?'selected':'')+'>Individual award</option><option value="Trophy" '+(h.type==='Trophy'?'selected':'')+'>Trophy</option></select></label><label class="f">Name<input class="input" id="honourName" value="'+esc(h.name||'')+'" placeholder="e.g. Players Player of the Year"></label><label class="f">Season<select class="input" id="honourSeason">'+ys.map(y=>'<option value="'+esc(y)+'" '+(h.season===y?'selected':'')+'>'+esc(y)+'</option>').join('')+'</select></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveHonour">Save</button></div>'+(q.hid?'<button class="btn danger" data-a="deleteHonour">Remove award</button>':'');}
 function sheetPlayer(id){
   const p=id?player(id):{name:'',number:'',pos:['CM'],notes:''};
   const sel=(i)=>`<select class="input" id="pp${i}"><option value="">${i?'None':'Choose'}</option>${POS.map(c=>`<option value="${c}" ${p.pos[i]===c?'selected':''}>${c} · ${POS_NAME[c]}</option>`).join('')}</select>`;
@@ -748,6 +750,7 @@ function sheetPlayer(id){
    <label class="f">Notes<input class="input" id="pNotes" value="${esc(p.notes||'')}" placeholder="e.g. quick, left-footed"></label>
    <div class="card stack"><b>Player photo</b>${p.photo?'<img src="'+p.photo+'" alt="Player photo" style="width:100px;height:100px;object-fit:cover;border-radius:50%">':''}<input type="file" id="playerPhotoFile" accept="image/*" aria-label="Upload player photo"><span class="small muted">Photo stays in this device's app data and backups.</span></div>
    <div class="card stack"><b>Opening career totals</b><p class="small muted">Enter confirmed totals from before tracking new games. New match stats add automatically.</p><div class="grid2">${[['apps','Appearances'],['goals','Goals'],['assists','Assists'],['motm','MOTM']].map(([k,l])=>'<label class="f">'+l+'<input class="input" type="number" min="0" id="opening_'+k+'" value="'+(p.openingStats?.[k]??0)+'"></label>').join('')}</div></div>
+   <div class="card stack"><b>Historical MOTM by season</b><p class="small muted">Allocate existing MOTM awards to seasons. New fixture MOTM awards are added automatically.</p><div class="grid2">${[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),...Object.keys(p.historicalMotmBySeason||{})])].sort().map(y=>'<label class="f">'+esc(y)+'<input class="input" type="number" min="0" data-motm-season="'+esc(y)+'" value="'+(p.historicalMotmBySeason?.[y]||0)+'"></label>').join('')}</div><label class="f">Unallocated historical MOTM<input class="input" type="number" min="0" id="motm_unallocated" value="${p.historicalUnallocatedMotm??Math.max(0,(p.openingStats?.motm||0)-Object.values(p.historicalMotmBySeason||{}).reduce((a,b)=>a+(+b||0),0))}"></label></div>
    <div class="card stack"><b>Historical goals by season</b><p class="small muted">Allocate past goals by season. Unallocated goals still count towards career totals.</p><div class="grid2">${[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),...Object.keys(p.historicalGoalsBySeason||{})])].sort().map(y=>'<label class="f">'+esc(y)+'<input class="input" type="number" min="0" data-historical-season="'+esc(y)+'" value="'+(p.historicalGoalsBySeason?.[y]||0)+'"></label>').join('')}</div><label class="f">Unallocated historical goals<input class="input" type="number" min="0" id="opening_unallocated" value="${p.historicalUnallocatedGoals??Math.max(0,(p.openingStats?.goals||0)-Object.values(p.historicalGoalsBySeason||{}).reduce((a,b)=>a+(+b||0),0))}"></label></div>
    ${st?`<div class="small muted">Career totals include opening stats and tracked matches.</div><div class="kpis num"><div><div class="stat-n">${st.apps}</div><div class="small muted">Apps</div></div><div><div class="stat-n">${Math.round(st.min)}</div><div class="small muted">Mins</div></div><div><div class="stat-n">${st.goals}</div><div class="small muted">Goals</div></div><div><div class="stat-n">${st.assists}</div><div class="small muted">Assists</div></div></div>`:''}
    ${id?`<div class="card stack"><b>Career goals by season</b>${Object.entries(bySeason).sort().map(([s,n])=>`<div class="row between"><span>${esc(s)}</span><b>${n}</b></div>`).join('')||'<p class="muted small">No goals recorded</p>'}<b>Scoring matches</b>${history.map(f=>`<div class="small">${esc(f.date)} · ${esc(f.opponent)} · ${(f.scorers||[]).filter(g=>g.pid===id).length} goal(s) · ${f.format}v${f.format}</div>`).join('')||'<p class="muted small">None recorded</p>'}</div>`:''}
@@ -1079,6 +1082,7 @@ function renderSheet(){
   let h='';
   const k=ui.sheet.k;
   if(k==='player') h=sheetPlayer(ui.sheet.id);
+  if(k==='honour') h=sheetHonour();
   if(k==='fixture') h=sheetFixture(ui.sheet.id);
   if(k==='opponent') h=sheetOpponent();
   if(k==='notes') h=sheetCoachingNotes();
@@ -1211,11 +1215,17 @@ const A = {
     const openingStats=Object.fromEntries(['apps','goals','assists','motm'].map(k=>[k,Math.max(0,parseInt(val('opening_'+k))||0)]));
     const historicalGoalsBySeason={};document.querySelectorAll('[data-historical-season]').forEach(el=>{const n=Math.max(0,parseInt(el.value)||0);if(n)historicalGoalsBySeason[el.dataset.historicalSeason]=n;});
     const historicalUnallocatedGoals=Math.max(0,parseInt(val('opening_unallocated'))||0);openingStats.goals=historicalUnallocatedGoals+Object.values(historicalGoalsBySeason).reduce((a,b)=>a+b,0);
-    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,notes:val('pNotes'),openingStats,historicalGoalsBySeason,historicalUnallocatedGoals,startSeason,leavingSeason,active:player(d.id).active,sample:false}); }
-    else { const p={id:uid(),teamId:team().id,name,number:num,pos,notes:val('pNotes'),openingStats,historicalGoalsBySeason,historicalUnallocatedGoals,startSeason,leavingSeason}; db.players.push(p);
+    const historicalMotmBySeason={};document.querySelectorAll('[data-motm-season]').forEach(el=>{const n=Math.max(0,parseInt(el.value)||0);if(n)historicalMotmBySeason[el.dataset.motmSeason]=n;});
+    const historicalUnallocatedMotm=Math.max(0,parseInt(val('motm_unallocated'))||0);openingStats.motm=historicalUnallocatedMotm+Object.values(historicalMotmBySeason).reduce((a,b)=>a+b,0);
+    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,notes:val('pNotes'),openingStats,historicalGoalsBySeason,historicalUnallocatedGoals,historicalMotmBySeason,historicalUnallocatedMotm,startSeason,leavingSeason,active:player(d.id).active,sample:false}); }
+    else { const p={id:uid(),teamId:team().id,name,number:num,pos,notes:val('pNotes'),openingStats,historicalGoalsBySeason,historicalUnallocatedGoals,historicalMotmBySeason,historicalUnallocatedMotm,startSeason,leavingSeason}; db.players.push(p);
       fixtures().filter(f=>f.status!=='played'&&!f.match).forEach(f=>{f.available.push(p.id); f.plan=null;}); }
     ui.sheet=null; toast('Saved');
   },
+  addHonour(d){ui.sheet={k:'honour',id:d.id};},
+  editHonour(d){ui.sheet={k:'honour',id:d.id,hid:d.hid};},
+  saveHonour(){const q=ui.sheet,p=player(q.id),name=val('honourName').trim(),type=val('honourType'),season=val('honourSeason');if(!name){toast('Enter an award or trophy name');return 'keep';}p.honours=p.honours||[];const h=q.hid?p.honours.find(x=>x.id===q.hid):null;if(h)Object.assign(h,{name,type,season});else p.honours.push({id:uid(),name,type,season});ui.sheet=null;toast('Award saved');},
+  deleteHonour(){const q=ui.sheet,p=player(q.id);p.honours=(p.honours||[]).filter(x=>x.id!==q.hid);ui.sheet=null;toast('Award removed');},
   delPlayer(d){ player(d.id).active=false; fixtures().forEach(f=>{ if(f.status!=='played'&&!f.match){ f.available=f.available.filter(x=>x!==d.id); f.plan=null; } }); ui.sheet=null; ui.confirm=null; toast('Player archived; historical stats preserved'); },
   saveFx(d){
     const opp=val('fOpp').trim(); if(!opp){ toast('Add the opponent'); return 'keep'; }
