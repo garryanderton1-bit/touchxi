@@ -23,12 +23,12 @@ img{max-width:100%}
 html{-webkit-text-size-adjust:100%}
 </style>
 <style>
-.formation-editor-pitch{position:relative;width:100%;aspect-ratio:0.78;background:repeating-linear-gradient(to bottom,#28884e 0%,#28884e 16.66%,#237b46 16.66%,#237b46 33.33%);border:4px solid #d4e7d9;border-radius:14px;overflow:hidden;touch-action:none;margin:8px 0}
+.formation-editor-pitch{position:relative;display:block;width:100%;height:480px;min-height:480px;flex:none;background:repeating-linear-gradient(to bottom,#28884e 0%,#28884e 16.66%,#237b46 16.66%,#237b46 33.33%);border:4px solid #d4e7d9;border-radius:14px;overflow:hidden;touch-action:none;margin:8px 0}
 .formation-pitch-line{position:absolute;left:4%;right:4%;top:50%;border-top:2px solid #ffffffa0}
 .formation-pitch-circle{position:absolute;left:35%;width:30%;top:38%;height:24%;border:2px solid #ffffffa0;border-radius:50%}
 .formation-pitch-box{position:absolute;left:23%;width:54%;bottom:0;height:18%;border:2px solid #ffffffa0}
 .formation-edit-token{position:absolute;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;border:3px solid var(--team-accent,#ff2e93);background:#1b2a4e;color:#fff;font-weight:800;font-size:14px;touch-action:none;user-select:none;z-index:2;box-shadow:0 3px 8px #0005}
-.formation-edit-token.keeper{background:#ff2e93;color:#fff}
+.formation-edit-token.keeper{background:#ff2e93;color:#fff}.formation-edit-token.selected{outline:4px solid #fff;outline-offset:3px;box-shadow:0 0 0 6px #ff2e93,0 4px 12px #0008}
 .formation-role-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 </style>
 </head>
@@ -1173,16 +1173,18 @@ function customDraftSlots(){
 }
 function formationEditorPitch(){
  const slots=customDraftSlots();
+ const selected=Math.min(ui.sheet.selectedFormationSlot||0,slots.length-1);
  return `<div class="formation-editor-pitch" id="formationEditorPitch">
  <div class="formation-pitch-line"></div><div class="formation-pitch-circle"></div><div class="formation-pitch-box"></div>
- ${slots.map((p,i)=>`<button type="button" class="formation-edit-token ${i===0?'keeper':''}" data-fslot="${i}" style="left:${p.x}%;top:${p.y}%" aria-label="Drag ${p.code} to position"><span>${esc(p.code)}</span></button>`).join('')}
+ ${slots.map((p,i)=>`<button type="button" class="formation-edit-token ${i===0?'keeper':''} ${i===selected?'selected':''}" data-fslot="${i}" style="left:${p.x}%;top:${p.y}%" aria-label="Drag position ${i}"><span>${esc(p.code)}</span></button>`).join('')}
  </div>
- <p class="small muted" style="margin:4px 0 0">Drag each position to where you want it on the pitch. Tap a position below to change its role.</p>
- <div class="formation-role-grid">${slots.map((p,i)=>`<label class="f">${i===0?'Goalkeeper':'Position '+i}<select class="input" data-a="formationRole" data-i="${i}" ${i===0?'disabled':''}>${POS.map(code=>`<option value="${code}" ${p.code===code?'selected':''}>${code}</option>`).join('')}</select></label>`).join('')}</div>`;
+ <p class="small muted" style="margin:4px 0 0">Drag the markers to build your formation. Tap any marker, then choose its role below.</p>
+ <label class="f">Selected player position <span id="formationSelectedLabel">${selected===0?'Goalkeeper':'Position '+selected}</span>
+ <select class="input" id="formationSelectedRole" data-a="formationSelectedRole" ${selected===0?'disabled':''}>${POS.map(code=>`<option value="${code}" ${slots[selected].code===code?'selected':''}>${code} · ${POS_NAME[code]||code}</option>`).join('')}</select></label>`;
 }
 function sheetCustomFormation(){
  const q=ui.sheet,fx=q.fxId?fixture(q.fxId):null,t=team(),f=(db.customFormations||[]).find(x=>x.id===q.id),fmt=f?.format||fx?.format||t.format;
- if(!q.customSlots){q.customSlots=(f?.slots||makeCustomSlots(f?.rows||((+fmt===9)?[3,2,3]:(+fmt===7)?[2,3,1]:[2,2]))).map(x=>({...x}));q.customFormat=fmt;}
+ if(!q.customSlots){q.selectedFormationSlot=0;q.customSlots=(f?.slots||makeCustomSlots(f?.rows||((+fmt===9)?[3,2,3]:(+fmt===7)?[2,3,1]:[2,2]))).map(x=>({...x}));q.customFormat=fmt;}
  return `<h2>${f?'Edit':'Create'} custom formation</h2><p class="small muted">Build the formation visually. Move the positions to the exact areas of the pitch you want. These are roles, not specific players; TouchXI will select players for them when you use the formation.</p>
  <label class="f">Formation name<input class="input" id="cfName" maxlength="15" value="${esc(f?.name||'')}" placeholder="e.g. High Press"></label>
  <label class="f">Match format<select class="input" id="cfFormat" data-a="formationFormat">${FORMATS.map(n=>`<option value="${n}" ${+n===+q.customFormat?'selected':''}>${n}v${n}</option>`).join('')}</select></label>
@@ -1350,7 +1352,7 @@ const A = {
   availNone(){ const f=curFx(); f.prefs=f.prefs||{};f.available.forEach(id=>{if(!(f.injured||[]).includes(id))f.prefs[id]='unavailable'});f.available=[]; autoPlan(f,false); },
   newCustomFormation(d){ui.sheet={k:'customFormation',fxId:d.fx||ui.fxId||null};},
   editCustomFormation(d){ui.sheet={k:'customFormation',id:d.id,fxId:ui.fxId||null};},
-  formationApplyRows(){const raw=val('cfRows').trim(),rows=raw.split('-').map(Number),format=+val('cfFormat');if(!/^\\d+(?:-\\d+){0,4}$/.test(raw)||rows.some(n=>n<1||n>6)||rows.reduce((a,b)=>a+b,0)!==format-1){toast('Outfield lines must total '+(format-1));return 'keep';}ui.sheet.customSlots=makeCustomSlots(rows);ui.sheet.customRows=raw;ui.sheet.customFormat=format;return;},
+  formationApplyRows(){const raw=val('cfRows').trim(),rows=raw.split('-').map(Number),format=+val('cfFormat');if(!/^\d+(?:-\d+){0,4}$/.test(raw)||rows.some(n=>n<1||n>6)||rows.reduce((a,b)=>a+b,0)!==format-1){toast('Outfield lines must total '+(format-1));return 'keep';}ui.sheet.customSlots=makeCustomSlots(rows);ui.sheet.customRows=raw;ui.sheet.customFormat=format;return;},
   saveCustomFormation(){const q=ui.sheet,name=val('cfName').trim(),format=+val('cfFormat'),raw=val('cfRows').trim(),rows=raw.split('-').map(x=>+x),style=val('cfStyle');if(!name||name.length>15){toast('Use a name of 1–15 characters');return 'keep';}if(!/^\d+(?:-\d+){0,4}$/.test(raw)||rows.some(n=>n<1||n>6)||rows.reduce((a,b)=>a+b,0)!==format-1){toast('Lines must add up to '+(format-1)+' outfield players');return 'keep';}db.customFormations=db.customFormations||[];const old=q.id?db.customFormations.find(x=>x.id===q.id&&x.teamId===team().id):null;const slots=customDraftSlots().map(x=>({...x}));if(slots.length!==format||slots[0].code!=='GK'){toast('Generate the correct number of positions before saving');return 'keep';}const values={name,format,style,rows,slots,custom:true};if(old){if(old.format!==format&&fixtures().some(f=>f.formationId===old.id||f.match?.formationId===old.id)){toast('Cannot change format of a formation already used in fixtures');return 'keep';}Object.assign(old,values);}else db.customFormations.push({id:'custom:'+uid(),teamId:team().id,...values});ui.sheet=null;ui.styleTab=style;toast('Custom formation saved for future fixtures');},
   removeCustomFormation(){const q=ui.sheet,f=(db.customFormations||[]).find(x=>x.id===q.id);if(!f)return;if(fixtures().some(x=>x.formationId===f.id||x.match?.formationId===f.id)){toast('Formation used by a fixture; cannot delete');return 'keep';}db.customFormations=db.customFormations.filter(x=>x.id!==f.id);if(team().defaultFormationId===f.id)team().defaultFormationId=null;team().favs=(team().favs||[]).filter(x=>x!==f.id);ui.sheet=null;toast('Custom formation deleted');},
   styleTab(d){ ui.styleTab=d.s; },
@@ -1576,12 +1578,15 @@ function draftField(el){ const a=el.dataset.a; if(!ui.sheet||!ui.sheet.draft) re
 document.addEventListener('change',async e=>{if(e.target.id==='csvFile'&&e.target.files?.[0]){const txt=await e.target.files[0].text();if(ui.sheet?.k==='import'){ui.sheet.text=txt;ui.sheet.preview=previewCSV(txt);render();}}});
 document.addEventListener('input',e=>{ if(e.target.dataset?.a==='mergeSearch'){ui.sheet.search=e.target.value;const q=ui.sheet.search.toLowerCase();document.querySelectorAll('[data-merge-row]').forEach(row=>{row.hidden=!row.dataset.mergeRow.toLowerCase().includes(q)});return;} if(e.target.dataset&&(e.target.dataset.a==='mf'||e.target.dataset.a==='gr')){ draftField(e.target); return; } if(e.target.dataset&&e.target.dataset.a==='color'){ team().colors[e.target.dataset.k]=e.target.value; applyTheme(); } });
 document.addEventListener('change',e=>{
- if(e.target.dataset?.a==='formationRole'&&ui.sheet?.k==='customFormation'){const i=+e.target.dataset.i;const slots=customDraftSlots();if(slots[i])slots[i].code=e.target.value;const token=document.querySelector('[data-fslot="'+i+'"] span');if(token)token.textContent=e.target.value;}
+ if(e.target.dataset?.a==='formationSelectedRole'&&ui.sheet?.k==='customFormation'){
+  const i=ui.sheet.selectedFormationSlot||0,slots=customDraftSlots();
+  if(i>0&&slots[i]){slots[i].code=e.target.value;const token=document.querySelector('[data-fslot="'+i+'"] span');if(token)token.textContent=e.target.value;}
+ }
  if(e.target.dataset?.a==='formationFormat'&&ui.sheet?.k==='customFormation'){const fmt=+e.target.value;ui.sheet.customFormat=fmt;const rows=fmt===9?[3,2,3]:fmt===7?[2,3,1]:fmt===5?[2,2]:fmt===11?[4,3,3]:[1,1,1];ui.sheet.customRows=rows.join('-');ui.sheet.customSlots=makeCustomSlots(rows);renderSheet();}
 });
 (function(){
  let drag=null;
- document.addEventListener('pointerdown',e=>{const el=e.target.closest('[data-fslot]');if(!el||ui.sheet?.k!=='customFormation')return;drag={el,id:e.pointerId,i:+el.dataset.fslot,pitch:el.closest('#formationEditorPitch')};el.setPointerCapture(e.pointerId);e.preventDefault();});
+ document.addEventListener('pointerdown',e=>{const el=e.target.closest('[data-fslot]');if(!el||ui.sheet?.k!=='customFormation')return;const i=+el.dataset.fslot;ui.sheet.selectedFormationSlot=i;document.querySelectorAll('[data-fslot]').forEach(t=>t.classList.toggle('selected',t===el));const label=document.getElementById('formationSelectedLabel'),role=document.getElementById('formationSelectedRole');if(label)label.textContent=i===0?'Goalkeeper':'Position '+i;if(role){role.value=customDraftSlots()[i].code;role.disabled=i===0;}drag={el,id:e.pointerId,i,pitch:el.closest('#formationEditorPitch')};el.setPointerCapture(e.pointerId);e.preventDefault();});
  document.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const rect=drag.pitch.getBoundingClientRect();const x=Math.max(7,Math.min(93,(e.clientX-rect.left)/rect.width*100)),y=Math.max(7,Math.min(93,(e.clientY-rect.top)/rect.height*100));const slot=customDraftSlots()[drag.i];slot.x=Math.round(x*10)/10;slot.y=Math.round(y*10)/10;drag.el.style.left=slot.x+'%';drag.el.style.top=slot.y+'%';e.preventDefault();});
  const end=e=>{if(drag&&drag.id===e.pointerId)drag=null;};
  document.addEventListener('pointerup',end);document.addEventListener('pointercancel',end);
