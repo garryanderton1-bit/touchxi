@@ -733,42 +733,41 @@ function render(){
 
 /* ---------- Home ---------- */
 function vHome(){
-  const fxs=fixtures(), today=new Date().toISOString().slice(0,10);
-  const live=fxs.find(f=>f.match&&!f.match.ended);
-  const next=fxs.filter(f=>f.status!=='played'&&f.date>=today).sort((a,b)=>a.date.localeCompare(b.date))[0];
-  const played=fxs.filter(f=>f.status==='played'&&f.score).sort((a,b)=>b.date.localeCompare(a.date));
-  const st=computeStats({});
-  const top=st.players.filter(r=>r.goals||r.assists).sort((a,b)=>b.goals-a.goals||b.assists-a.assists).slice(0,3);
-  const sample=fxs.some(f=>f.sample)||squad().some(p=>p.sample);
-  return `<div class="stack">
-  ${sample?`<div class="notice"><span>You're looking at example players and fixtures. Replace them with your own squad, or clear them in one go.</span><button class="btn sm" data-a="clearSample">Clear examples</button></div>`:''}
-  ${(()=>{const n=squad().filter(p=>!p.pos.length).length; return n?`<div class="notice"><span>${n} player${n>1?'s have':' has'} no positions yet. Add them so the planner can put players in the right places.</span><button class="btn sm" data-a="nav" data-v="squad">Open squad</button></div>`:''})()}
-  ${live?`<div class="card" style="border-color:var(--team-2)"><div class="eyebrow">Match in progress</div><div class="row between" style="margin-top:6px"><h2>v ${esc(live.opponent)} <span class="num">${live.match.us}–${live.match.them}</span></h2><button class="btn accent" data-a="openMatch" data-id="${live.id}">Resume</button></div></div>`:''}
-  ${next?`<div class="card stack">
-     <div class="row between"><div class="eyebrow">Next match</div>${next.sample?'<span class="pill ex">Example</span>':''}</div>
-     <div><h2>${next.homeAway==='H'?'':'@ '}${esc(next.opponent)}</h2><div class="muted small" style="margin-top:4px">${fmtDate(next.date)}${next.time?' · '+esc(next.time):''} · ${esc(next.competition||'')} · ${next.format}v${next.format}</div></div>
-     <div class="muted small">${next.available.length} available · ${next.periods}×${next.periodMins} min</div>
-     <div class="grid2"><button class="btn" data-a="openFx" data-id="${next.id}">Pick team</button><button class="btn primary" data-a="openMatch" data-id="${next.id}">Matchday</button></div>
-   </div>`:`<div class="card"><div class="eyebrow">Next match</div><p class="muted">No upcoming fixtures.</p><button class="btn primary" data-a="addFx">Add a fixture</button></div>`}
-  <div class="card stack">
-    <div class="row between"><div class="eyebrow">Form</div><div class="form">${played.slice(0,5).map(f=>`<span class="pill ${result(f)}">${result(f)}</span>`).join('')||'<span class="muted small">No results yet</span>'}</div></div>
-    <div class="kpis num"><div><div class="stat-n">${st.T.P}</div><div class="small muted">Played</div></div><div><div class="stat-n">${st.T.W}</div><div class="small muted">Won</div></div><div><div class="stat-n">${st.T.D}</div><div class="small muted">Drawn</div></div><div><div class="stat-n">${st.T.L}</div><div class="small muted">Lost</div></div></div>
-    ${played[0]?`<div class="small muted">Last: ${esc(played[0].opponent)} <b class="num" style="color:var(--fg)">${played[0].score.us}–${played[0].score.them}</b> · ${fmtDate(played[0].date,{day:'numeric',month:'short'})}</div>`:''}
-  </div>
-  ${top.length?`<div class="card"><div class="eyebrow">Top contributors</div><div class="list">${top.map(r=>`<div class="li"><div class="shirt">${r.p.number||''}</div><div class="main"><div class="title">${esc(r.p.name)}</div></div><span class="num">${r.goals} G · ${r.assists} A</span></div>`).join('')}</div></div>`:''}
-  <div class="brandfoot"><img src="${APP_LOGO}" alt=""><div><b>TouchXI</b><span>Your team. Your tactics. Your game.</span></div></div>
-  </div>`;
+ const t=team(),today=new Date().toISOString().slice(0,10),fxs=fixtures();
+ const coming=[
+ ...fxs.filter(f=>f.status!=='played'&&f.date>=today).map(f=>({id:f.id,date:f.date,time:f.time||'',name:f.opponent,type:'Match',action:'openFx'})),
+ ...(t.trainingSessions||[]).filter(x=>x.date>=today).map(x=>({id:x.id,date:x.date,time:x.time||'',name:x.title||'Training',type:'Training',action:'editTraining'})),
+ ...(t.scheduleEvents||[]).filter(x=>x.date>=today).map(x=>({id:x.id,date:x.date,time:x.time||'',name:x.title||'Team event',type:'Event',action:'editEvent'}))
+ ].sort((a,b)=>(a.date+' '+a.time).localeCompare(b.date+' '+b.time)).slice(0,3);
+ const played=fxs.filter(f=>f.status==='played'&&f.score).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+ const tasks=t.managerTasks||[],active=tasks.filter(x=>!x.done).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
+ const honours=t.teamHonours||[];
+ const top=computeStats({}).players.filter(r=>r.goals||r.assists).sort((a,b)=>b.goals-a.goals||b.assists-a.assists).slice(0,3);
+ return `<div class="stack">
+ <div class="card stack"><div class="row between"><div class="eyebrow">Coming up</div><button class="btn sm" data-a="nav" data-v="fixtures">Schedule ›</button></div>
+ ${coming.length?'<div class="list">'+coming.map(x=>'<button class="li" data-a="'+x.action+'" data-id="'+x.id+'"><span class="main"><b>'+esc(x.name)+'</b><div class="small muted">'+esc(x.type)+' · '+fmtDate(x.date)+(x.time?' · '+esc(x.time):'')+'</div></span><span>›</span></button>').join('')+'</div>':'<p class="small muted">Nothing coming up. Add fixtures, training or events in Schedule.</p>'}</div>
+ <div class="card stack"><div class="eyebrow">Recent form</div><div class="form">${played.map(f=>'<span class="pill '+result(f)+'">'+result(f)+'</span>').join('')||'<span class="small muted">No results yet</span>'}</div>${played.length?'<div class="small muted">'+played.map(f=>esc(f.opponent)+' '+esc(f.score.us)+'–'+esc(f.score.them)).join(' · ')+'</div>':''}</div>
+ <div class="card stack"><div class="row between"><div class="eyebrow">Manager’s to-do list · ${active.length}</div><button class="btn sm primary" data-a="newManagerTask">+ Add</button></div>
+ ${active.length?'<div class="list">'+active.map(x=>'<div class="li"><button class="btn sm" data-a="completeManagerTask" data-id="'+x.id+'" aria-label="Complete task">○</button><button class="main" style="text-align:left;background:none;border:0;color:inherit" data-a="editManagerTask" data-id="'+x.id+'"><b>'+esc(x.title)+'</b><div class="small muted">'+esc(x.priority||'Normal')+(x.due?' · Due '+fmtDate(x.due):'')+'</div></button></div>').join('')+'</div>':'<p class="small muted">No outstanding tasks.</p>'}
+ ${tasks.some(x=>x.done)?'<button class="btn sm" data-a="toggleCompletedTasks">'+(ui.showCompletedTasks?'Hide completed':'Completed ('+tasks.filter(x=>x.done).length+')')+'</button>':''}
+ ${ui.showCompletedTasks?'<div class="list">'+tasks.filter(x=>x.done).map(x=>'<div class="li"><button class="btn sm" data-a="completeManagerTask" data-id="'+x.id+'">✓</button><span class="main small muted">'+esc(x.title)+'</span><button class="btn sm" data-a="editManagerTask" data-id="'+x.id+'">Edit</button></div>').join('')+'</div>':''}</div>
+ <div class="card stack"><div class="row between"><div class="eyebrow">Trophy cabinet · ${honours.length}</div><button class="btn sm" data-a="toggleTeamHonours">${ui.showTeamHonours?'Hide':'View all'}</button></div>
+ ${honours.length?'<div><b>🏆 '+esc(honours[honours.length-1].name)+'</b><div class="small muted">'+esc(honours[honours.length-1].season||'')+'</div></div>':'<p class="small muted">No team honours recorded yet.</p>'}
+ ${ui.showTeamHonours?'<div class="list">'+honours.map(h=>'<button class="li" data-a="editTeamHonour" data-id="'+h.id+'"><span class="main"><b>'+esc(h.name)+'</b><div class="small muted">'+esc(h.season||'')+' · '+(h.playerIds||[]).length+' players</div></span><span>›</span></button>').join('')+'</div>':''}
+ <button class="btn sm primary" data-a="newTeamHonour">+ Add honour</button></div>
+ </div>`;
 }
-
 /* ---------- Squad ---------- */
 function vSquad(){
   const ps=squad();
   const former=db.players.filter(p=>p.teamId===team().id&&p.active===false).sort((a,b)=>a.name.localeCompare(b.name));
   const staff=team().coachingStaff||[];
+  const top=computeStats({}).players.filter(r=>r.goals||r.assists).sort((a,b)=>b.goals-a.goals||b.assists-a.assists).slice(0,5);
   return `<div class="stack">
    <div class="row between"><h2>Squad <span class="muted num" style="font-size:18px">${ps.length}</span></h2><button class="btn primary" data-a="editPlayer">Add player</button></div>
    <div class="card stack"><div class="row between"><div class="eyebrow">Coaches · ${staff.length}</div><div class="row"><button class="btn sm" data-a="addCoach">+ Add</button><button class="btn sm" data-a="toggleCoaches">${ui.showCoaches?'Hide':'Show'}</button></div></div>${ui.showCoaches?'<div class="list">'+(staff.map(c=>'<button class="li" data-a="editCoach" data-id="'+c.id+'"><span class="main"><b>'+esc(c.name)+'</b><div class="small muted">'+esc(c.role||'Coach')+' · '+(c.qualifications||[]).length+' qualifications</div></span><span>›</span></button>').join('')||'<p class="small muted">No coaching staff yet.</p>')+'</div>':''}</div>
    <div class="card stack"><div class="eyebrow">Current squad · ${ps.length}</div><div class="list">${ps.map(p=>`<button class="li" data-a="openPlayerProfile" data-id="${p.id}"><div class="shirt" style="overflow:hidden">${p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover" alt="">':(p.number??'')}</div><div class="main"><div class="title">${esc(p.name)} ${p.sample?'<span class="pill ex">Example</span>':''}</div><div class="row" style="gap:4px;margin-top:3px">${p.pos.length?p.pos.map((c,i)=>`<span class="pos ${i===0?'p1':''}">${c}</span>`).join(''):'<span class="pill">Positions not set</span>'}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">No players yet. Add your squad to start picking teams.</p>'}</div></div>
+   <div class="card stack"><div class="row between"><div class="eyebrow">Player statistics</div><button class="btn sm" data-a="toggleSquadStats">${ui.showSquadStats?'Hide':'Show'}</button></div>${ui.showSquadStats?'<div class="list">'+top.map(r=>'<button class="li" data-a="openPlayerProfile" data-id="'+r.p.id+'"><span class="main"><b>'+esc(r.p.name)+'</b></span><span class="num">'+r.goals+' G · '+r.assists+' A</span></button>').join('')+'</div><button class="btn sm" data-a="nav" data-v="stats">Full statistics ›</button>':''}</div>
    ${former.length?'<div class="card stack"><div class="row between"><div class="eyebrow">Former players · '+former.length+'</div><button class="btn sm" data-a="toggleFormerPlayers" aria-expanded="'+!!ui.showFormerPlayers+'">'+(ui.showFormerPlayers?'Hide':'Show')+'</button></div>'+(ui.showFormerPlayers?'<p class="small muted">Archived players are excluded from the current squad. Tap to view or edit their history.</p><div class="list">'+former.map(p=>'<button class="li" data-a="openPlayerProfile" data-id="'+p.id+'"><div class="main"><div class="title">'+esc(p.name)+'</div><div class="small muted">'+esc(p.startSeason?seasonLabel(p.startSeason):'Start unknown')+' – '+esc(p.leavingSeason?seasonLabel(p.leavingSeason):'Leaving unknown')+'</div></div><span class="muted">›</span></button>').join('')+'</div>':'')+'</div>':''}
   </div>`;
 }
@@ -798,6 +797,14 @@ function vPlayerProfile(){
  <div class="card stack"><div class="eyebrow">Match attendance · tracked fixtures</div>${(()=>{const rows=attendanceRows(p.id);const counts={};rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);return '<div class="grid2">'+[['Played',counts.Played||0],['Missed',(counts.Injured||0)+(counts.Unavailable||0)+(counts['Not selected']||0)],['Injured',counts.Injured||0],['Available unused',counts['Available but unused']||0]].map(([k,n])=>'<div style="padding:10px;background:var(--surface-2);border-radius:10px"><b>'+n+'</b><div class="small muted">'+k+'</div></div>').join('')+'</div>'+(rows.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Fixture</th><th>Status</th></tr></thead><tbody>'+rows.map(({f,status})=>'<tr><td>'+esc(fmtDate(f.date))+' · '+esc(f.opponent)+'</td><td>'+esc(status)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Attendance builds when new matches are completed.</p>');})()}</div>
  <div class="card stack"><div class="eyebrow">Coaching notes</div><p style="white-space:pre-wrap;margin:0">${esc(p.notes||'No notes recorded yet.')}</p><button class="btn sm" data-a="editPlayer" data-id="${p.id}">Edit notes</button></div>
  </div>`;
+}
+function sheetManagerTask(){
+ const x=(team().managerTasks||[]).find(t=>t.id===ui.sheet.id)||{};
+ return `<h2>${x.id?'Edit task':'Add task'}</h2><label class="f">Task<input class="input" id="taskTitle" value="${esc(x.title||'')}" placeholder="e.g. Organise Christmas party"></label><label class="f">Due date (optional)<input class="input" id="taskDue" type="date" value="${esc(x.due||'')}"></label><label class="f">Priority<select class="input" id="taskPriority">${['Normal','High','Low'].map(z=>'<option '+(x.priority===z?'selected':'')+'>'+z+'</option>').join('')}</select></label><label class="f">Notes<textarea class="input" id="taskNotes">${esc(x.notes||'')}</textarea></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveManagerTask">Save</button></div>${x.id?'<button class="btn danger" data-a="deleteManagerTask">Delete task</button>':''}`;
+}
+function sheetTeamHonour(){
+ const x=(team().teamHonours||[]).find(h=>h.id===ui.sheet.id)||{},ids=x.playerIds||[];
+ return `<h2>${x.id?'Edit team honour':'Add team honour'}</h2><label class="f">Trophy or honour<input class="input" id="teamHonourName" value="${esc(x.name||'')}"></label><label class="f">Season<input class="input" id="teamHonourSeason" value="${esc(x.season||'')}" placeholder="2026/27"></label><label class="f">Notes<textarea class="input" id="teamHonourNotes">${esc(x.notes||'')}</textarea></label><div class="eyebrow">Award to players</div><div class="list">${db.players.filter(p=>p.teamId===team().id).map(p=>'<label class="li"><input type="checkbox" data-honour-player="'+p.id+'" '+(ids.includes(p.id)?'checked':'')+'><span class="main">'+esc(p.name)+'</span></label>').join('')}</div><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveTeamHonour">Save</button></div>${x.id?'<button class="btn danger" data-a="deleteTeamHonour">Delete honour</button>':''}`;
 }
 function sheetCoach(){
  const c=(team().coachingStaff||[]).find(x=>x.id===ui.sheet.id)||{};
@@ -1212,6 +1219,8 @@ function renderSheet(){
   const k=ui.sheet.k;
   if(k==='player') h=sheetPlayer(ui.sheet.id);
   if(k==='coach') h=sheetCoach();
+  if(k==='managerTask') h=sheetManagerTask();
+  if(k==='teamHonour') h=sheetTeamHonour();
   if(k==='honour') h=sheetHonour();
   if(k==='fixture') h=sheetFixture(ui.sheet.id);
   if(k==='opponent') h=sheetOpponent();
@@ -1420,6 +1429,18 @@ const A = {
   saveNotes(){const f=fixture(ui.sheet.id);f.coachingNotes={good:val('noteGood'),improve:val('noteImprove'),training:val('noteTraining')};ui.sheet=null;toast('Coaching notes saved');},
   editFx(d){ ui.sheet={k:'fixture',id:d.id}; ui.confirm=null; },
   openPlayerProfile(d){ui.profilePlayerId=d.id;ui.view='playerProfile';window.scrollTo(0,0);},
+  toggleSquadStats(){ui.showSquadStats=!ui.showSquadStats;},
+  toggleCompletedTasks(){ui.showCompletedTasks=!ui.showCompletedTasks;},
+  newManagerTask(){ui.sheet={k:'managerTask'};},
+  editManagerTask(d){ui.sheet={k:'managerTask',id:d.id};},
+  saveManagerTask(){const t=team(),title=val('taskTitle').trim();if(!title){toast('Enter a task');return 'keep';}t.managerTasks=t.managerTasks||[];const x=t.managerTasks.find(x=>x.id===ui.sheet.id),data={title,due:val('taskDue'),priority:val('taskPriority'),notes:val('taskNotes')};if(x)Object.assign(x,data);else t.managerTasks.push({id:uid(),done:false,...data});ui.sheet=null;toast('Task saved');},
+  completeManagerTask(d){const x=(team().managerTasks||[]).find(x=>x.id===d.id);if(x)x.done=!x.done;},
+  deleteManagerTask(){team().managerTasks=(team().managerTasks||[]).filter(x=>x.id!==ui.sheet.id);ui.sheet=null;},
+  toggleTeamHonours(){ui.showTeamHonours=!ui.showTeamHonours;},
+  newTeamHonour(){ui.sheet={k:'teamHonour'};},
+  editTeamHonour(d){ui.sheet={k:'teamHonour',id:d.id};},
+  saveTeamHonour(){const t=team(),name=val('teamHonourName').trim();if(!name){toast('Enter an honour');return 'keep';}t.teamHonours=t.teamHonours||[];const x=t.teamHonours.find(h=>h.id===ui.sheet.id);const data={name,season:val('teamHonourSeason'),notes:val('teamHonourNotes'),playerIds:[...document.querySelectorAll('[data-honour-player]:checked')].map(el=>el.dataset.honourPlayer)};if(x)Object.assign(x,data);else t.teamHonours.push({id:uid(),...data});ui.sheet=null;toast('Honour saved');},
+  deleteTeamHonour(){team().teamHonours=(team().teamHonours||[]).filter(x=>x.id!==ui.sheet.id);ui.sheet=null;},
   toggleCoaches(){ui.showCoaches=!ui.showCoaches;},
   addCoach(){ui.showCoaches=true;ui.sheet={k:'coach'};},
   editCoach(d){ui.sheet={k:'coach',id:d.id};},
