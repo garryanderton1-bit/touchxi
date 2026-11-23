@@ -713,7 +713,7 @@ function render(){
   else if(ui.view==='fixture') body=vFixture();
   else if(ui.view==='stats') body=vStats();
   else if(ui.view==='team') body=vTeam();
-  const tabs=[['home','Home'],['squad','Squad'],['fixtures','Fixtures'],['stats','Stats'],['team','Team']];
+  const tabs=[['home','Home'],['squad','Squad'],['fixtures','Schedule'],['stats','Stats'],['team','Team']];
   const active = ui.view==='playerProfile'?'squad':['fixture','opponents','opponentDetail','history'].includes(ui.view)?'fixtures':ui.view;
   app.innerHTML = `
   <header class="bar"><div class="wrap">${badgeHtml(t)}<div class="grow"><div class="tname">${esc(t.name)}</div><div class="brand">TouchXI</div></div><img class="applogo" src="${APP_LOGO}" alt="TouchXI"></div></header>
@@ -820,20 +820,42 @@ function fxRow(f){
     ${f.score?`<span class="pill ${r} num">${esc(matchScoreLabel(f))}</span>`:'<span class="muted">›</span>'}</button>`;
 }
 function vFixtures(){
-  const fxs=fixtures();
-  const up=fxs.filter(f=>f.status!=='played').sort((a,b)=>a.date.localeCompare(b.date));
-  const done=fxs.filter(f=>f.status==='played').sort((a,b)=>b.date.localeCompare(a.date));
-  const past=ui.fixturesTab==='past';
-  const visible=past?done:up;
-  return `<div class="stack">
-   <div class="row between"><h2>Fixtures</h2><div class="row"><button class="btn" data-a="importSheet">Import results</button><button class="btn primary" data-a="addFx">Add</button></div></div>
-   <div class="grid2"><button class="btn" data-a="nav" data-v="opponents">Manage opponents</button><button class="btn" data-a="nav" data-v="history">Match history / Audit</button></div>
-   <div class="seg" style="display:grid;grid-template-columns:1fr 1fr" role="group" aria-label="Fixture view">
-     <button type="button" data-a="fixturesTab" data-v="upcoming" class="${!past?'on':''}" aria-pressed="${!past}">Upcoming (${up.length})</button>
-     <button type="button" data-a="fixturesTab" data-v="past" class="${past?'on':''}" aria-pressed="${past}">Past fixtures (${done.length})</button>
-   </div>
-   <div class="card"><div class="eyebrow">${past?'Past fixtures':'Upcoming fixtures'}</div><div class="list">${visible.map(fxRow).join('')||(past?'<p class="muted small">No past fixtures yet.</p>':'<p class="muted small">Nothing scheduled.</p>')}</div></div>
-  </div>`;
+ const today=new Date().toISOString().slice(0,10);
+ const fxs=fixtures();
+ const up=fxs.filter(f=>f.status!=='played'&&f.date>=today).map(f=>({...f,eventType:'match'}));
+ const training=(team().trainingSessions||[]).map(x=>({...x,eventType:'training'}));
+ const upcoming=[...up,...training.filter(x=>x.date>=today)].sort((a,b)=>a.date.localeCompare(b.date));
+ const done=fxs.filter(f=>f.status==='played').sort((a,b)=>b.date.localeCompare(a.date));
+ const pastTraining=training.filter(x=>x.date<today).sort((a,b)=>b.date.localeCompare(a.date));
+ const tab=ui.scheduleTab||'upcoming', expanded=!!ui.scheduleExpanded;
+ const eventRow=x=>x.eventType==='training'?'<button class="li" data-a="editTraining" data-id="'+x.id+'"><span class="main"><b>Training</b><div class="small muted">'+esc(fmtDate(x.date))+' · '+(x.present?.length||0)+' marked present</div></span><span>Attendance ›</span></button>':fxRow(x);
+ const history=[...done.map(x=>({...x,eventType:'match'})),...pastTraining].sort((a,b)=>b.date.localeCompare(a.date));
+ const historyFiltered=history.filter(x=>(!ui.scheduleSeason||season(x.date)===ui.scheduleSeason)&&(!ui.scheduleType||x.eventType===ui.scheduleType));
+ const years=[...new Set(history.map(x=>season(x.date)))].sort().reverse();
+ const visible=tab==='history'?historyFiltered:upcoming;
+ return `<div class="stack">
+ <div class="row between"><h2>Schedule</h2><div class="row"><button class="btn primary sm" data-a="addFx">+ Match</button><button class="btn sm" data-a="newTraining">+ Training</button></div></div>
+ <div class="seg" style="display:grid;grid-template-columns:repeat(3,1fr)" role="group" aria-label="Schedule view">
+ <button data-a="scheduleTab" data-v="upcoming" class="${tab==='upcoming'?'on':''}">Upcoming</button>
+ <button data-a="scheduleTab" data-v="attendance" class="${tab==='attendance'?'on':''}">Attendance</button>
+ <button data-a="scheduleTab" data-v="history" class="${tab==='history'?'on':''}">History</button></div>
+ ${tab==='attendance'?vScheduleAttendance():`
+ ${tab==='history'?'<div class="grid2"><select class="input" data-a="scheduleFilter" data-k="season"><option value="">All seasons</option>'+years.map(y=>'<option value="'+esc(y)+'" '+(ui.scheduleSeason===y?'selected':'')+'>'+esc(seasonLabel(y))+'</option>').join('')+'</select><select class="input" data-a="scheduleFilter" data-k="type"><option value="">All activities</option><option value="match" '+(ui.scheduleType==='match'?'selected':'')+'>Matches</option><option value="training" '+(ui.scheduleType==='training'?'selected':'')+'>Training</option></select></div>':''}
+ <div class="card stack"><div class="eyebrow">${tab==='history'?'Completed activities':'Next activities'} · ${visible.length}</div><div class="list">${visible.slice(0,expanded?undefined:5).map(eventRow).join('')||'<p class="small muted">Nothing to show.</p>'}</div>
+ ${visible.length>5?'<button class="btn" data-a="scheduleExpand">'+(expanded?'Show less':'View all ('+visible.length+')')+'</button>':''}</div>`}
+ <div class="grid2"><button class="btn" data-a="nav" data-v="opponents">Manage opponents</button><button class="btn" data-a="nav" data-v="history">Match audit</button></div>
+ </div>`;
+}
+function vScheduleAttendance(){
+ const sessions=team().trainingSessions||[];
+ const years=[...new Set([...sessions.map(x=>season(x.date)),...squad().flatMap(p=>Object.keys(p.historicalAttendance||{})),...fixtures().filter(f=>f.status==='played').map(f=>fixtureSeason(f))])].sort().reverse();
+ const y=ui.attendanceSeason||years[0]||season(new Date().toISOString().slice(0,10));
+ const mode=ui.attendanceMode||'training';
+ return `<div class="card stack"><div class="row between"><div class="eyebrow">Attendance overview</div><button class="btn sm primary" data-a="newTraining">+ Session</button></div>
+ <select class="input" data-a="attendanceSeason"><option value="">All seasons</option>${years.map(x=>'<option value="'+esc(x)+'" '+(y===x?'selected':'')+'>'+esc(seasonLabel(x))+'</option>').join('')}</select>
+ <div class="seg" style="display:grid;grid-template-columns:1fr 1fr"><button data-a="attendanceMode" data-v="training" class="${mode==='training'?'on':''}">Training</button><button data-a="attendanceMode" data-v="match" class="${mode==='match'?'on':''}">Matches</button></div>
+ <div class="list">${squad().map(p=>{if(mode==='training'){const a=trainingAttendance(p,y);return '<div class="li"><span class="main">'+esc(p.name)+'</span><b>'+a.present+' / '+a.total+(a.total?' · '+Math.round(a.present/a.total*100)+'%':'')+'</b></div>';}const rr=attendanceRows(p.id).filter(x=>fixtureSeason(x.f)===y),played=rr.filter(x=>x.status==='Played').length;return '<div class="li"><span class="main">'+esc(p.name)+'</span><b>'+played+' played · '+(rr.length-played)+' other</b></div>';}).join('')}</div>
+ <p class="small muted">Historical training totals can be edited from each player profile. Imported matches without tracked attendance are excluded.</p></div>`;
 }
 function sheetFixture(id){
   const t=team(); const f=id?fixture(id):{date:new Date().toISOString().slice(0,10),time:'10:00',opponent:'',venue:'',homeAway:'H',competition:'League',format:t.format,periods:t.periods,periodMins:t.periodMins,windows:t.windows||1};
@@ -970,8 +992,7 @@ function vStats(){
    <h2>Stats</h2>
    ${goalReview.length?`<div class="card stack"><div class="row between"><div class="eyebrow">Goalscorers needing review · ${goalReview.length}</div><button class="btn sm" data-a="toggleGoalReview">${ui.showGoalReview?"Hide":"Show"}</button></div><p class="small muted">The score does not match the number of recorded goals. Imported fixtures may not have historical scorers yet. Own goals count towards the match total, but not player goals.</p>${ui.showGoalReview?goalReview.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><span class="main">${esc(f.opponent)} · ${esc(f.date)}</span><b>${goalAudit(f).recorded} of ${goalAudit(f).expected}</b><span>›</span></button>`).join(""):""}</div>`:""}
    ${invalid.length?`<div class="card stack"><div class="eyebrow">Results needing correction · ${invalid.length}</div><p class="small muted">These scores look incorrect and are excluded from the statistics until corrected. The fixtures are preserved.</p>${invalid.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><span class="main">${esc(f.opponent)} · ${esc(f.date)}</span><b>${esc(f.score.us)}–${esc(f.score.them)}</b><span>›</span></button>`).join("")}</div>`:""}
-   <div class="card stack"><div class="row between"><div class="eyebrow">Training attendance · season overview</div><button class="btn sm" data-a="toggleTrainingStats">${ui.showTrainingStats?'Hide':'Show'}</button></div>${ui.showTrainingStats?`<div class="scroll-x"><table class="mtab"><thead><tr><th>Player</th><th>Attended</th><th>Held</th><th>%</th></tr></thead><tbody>${squad().map(p=>{const years=[...new Set([...Object.keys(p.historicalAttendance||{}),...(team().trainingSessions||[]).map(x=>season(x.date))])],a=years.reduce((z,y)=>{const v=trainingAttendance(p,y);z.present+=v.present;z.total+=v.total;return z;},{present:0,total:0});return '<tr><td>'+esc(p.name)+'</td><td>'+a.present+'</td><td>'+a.total+'</td><td>'+(a.total?Math.round(100*a.present/a.total)+'%':'—')+'</td></tr>';}).join('')}</tbody></table></div>`:'<p class="small muted">Open to view player training attendance. Historical totals can be entered in each player profile.</p>'}</div>
-   <div class="card stack"><div class="eyebrow">Team attendance · completed tracked fixtures</div><div class="scroll-x"><table class="mtab"><thead><tr><th>Player</th><th>Played</th><th>Missed</th><th>Injured</th><th>Available unused</th><th>Attendance</th></tr></thead><tbody>${squad().map(p=>{const rr=attendanceRows(p.id).filter(x=>!ui.filter?.season||fixtureSeason(x.f)===ui.filter.season);const n=k=>rr.filter(x=>x.status===k).length;const played=n('Played'),missed=n('Injured')+n('Unavailable')+n('Not selected'),eligible=played+missed;return '<tr><td>'+esc(p.name)+'</td><td>'+played+'</td><td>'+missed+'</td><td>'+n('Injured')+'</td><td>'+n('Available but unused')+'</td><td>'+(eligible?Math.round(played/eligible*100)+'%':'—')+'</td></tr>';}).join('')}</tbody></table></div><p class="small muted">Future fixtures and imported historical results without player attendance are excluded. Available but unused is not counted as a missed game.</p></div>
+   <div class="card"><div class="row between"><div><div class="eyebrow">Attendance</div><p class="small muted">Training and match attendance reports are in Schedule.</p></div><button class="btn sm" data-a="openAttendance">View</button></div></div>
    <div class="grid2"><select class="input" data-a="filter" data-k="season"><option value="">All seasons</option>${seasons.map(s=>`<option value="${esc(s)}" ${ui.filter?.season===s?'selected':''}>${esc(seasonLabel(s))}</option>`).join('')}</select>
    <select class="input" data-a="filter" data-k="comp"><option value="">All competitions</option>${comps.map(s=>`<option ${ui.filter?.comp===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
    <div class="card stack stats-overview"><div class="row between"><div class="eyebrow">Team record</div>${allTime?'<button class="btn sm primary" data-a="editTeamStats">Edit stats</button>':(!ui.filter?.comp?'<button class="btn sm primary" data-a="editSeasonStats" data-season="'+esc(ui.filter.season)+'">Edit season</button>':'')}</div>
@@ -1017,7 +1038,7 @@ function vTeam(){
   const t=team();
   return `<div class="stack">
    <h2>Team</h2>
-   <div class="card stack"><div class="row between"><div class="eyebrow">Training attendance</div><button class="btn sm primary" data-a="newTraining">+ Session</button></div><p class="small muted">Record training attendance by date. Player profiles show season totals and allow historical entry.</p>${(t.trainingSessions||[]).slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12).map(x=>`<button class="li" data-a="editTraining" data-id="${x.id}"><span class="main">${esc(fmtDate(x.date))}</span><b>${x.present?.length||0} attended</b><span>›</span></button>`).join('')||'<p class="small muted">No sessions recorded yet.</p>'}</div>
+   <div class="card"><div class="row between"><div class="eyebrow">Training</div><button class="btn sm" data-a="openAttendance">Open in Schedule</button></div></div>
    <div class="card stack">
      <div class="row">${badgeHtml(t,56)}<label class="btn sm">Upload badge<input type="file" accept="image/*" id="badgeFile" hidden></label>${t.badge?'<button class="btn sm ghost" data-a="clearBadge">Remove</button>':''}</div>
      <div class="grid2" style="grid-template-columns:1fr 90px"><label class="f">Team name<input class="input" id="tName" value="${esc(t.name)}" data-a="teamField" data-k="name"></label><label class="f">Initials<input class="input" id="tShort" maxlength="3" value="${esc(t.short||'')}" data-a="teamField" data-k="short"></label></div>
@@ -1308,6 +1329,12 @@ function previewCSV(text){
 /* ============================ Actions ============================ */
 function curFx(){ return fixture(ui.fxId); }
 const A = {
+  scheduleTab(d){ui.scheduleTab=d.v;ui.scheduleExpanded=false;},
+  scheduleExpand(){ui.scheduleExpanded=!ui.scheduleExpanded;},
+  scheduleFilter(d){ui[d.k==='season'?'scheduleSeason':'scheduleType']=d.value;ui.scheduleExpanded=false;},
+  attendanceSeason(d){ui.attendanceSeason=d.value;},
+  attendanceMode(d){ui.attendanceMode=d.v;},
+  openAttendance(){ui.view='fixtures';ui.scheduleTab='attendance';ui.scheduleExpanded=false;},
   fixturesTab(d){ ui.fixturesTab=d.v==='past'?'past':'upcoming'; },
   nav(d){ ui.view=d.v; ui.sel=null; ui.confirm=null; window.scrollTo(0,0); },
   openFx(d){ ui.view='fixture'; ui.fxId=d.id; ui.block=0; ui.sel=null; ui.styleTab=null; window.scrollTo(0,0); },
