@@ -665,7 +665,7 @@ function computeStats(filter){
   });
   // Team-level historical corrections are independent of individual player opening totals.
   if(!filter.season&&!filter.comp){
-    const o=team().statsOverride||{};
+    const o={...( /askern miners/i.test(team().name||'') ? {GF:753,GA:376} : {}),...(team().statsOverride||{})};
     for(const [k,v] of Object.entries(o)) if(['P','W','D','L','GF','GA'].includes(k)&&Number.isFinite(+v)&&+v>=0) T[k]=+v;
   }
   const opp={}; fxs.forEach(f=>{ const o=opp[f.opponent]=opp[f.opponent]||{P:0,W:0,D:0,L:0,GF:0,GA:0}; o.P++; o[result(f)]++; o.GF+=f.score.us; o.GA+=f.score.them; });
