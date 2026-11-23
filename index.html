@@ -671,6 +671,10 @@ function computeStats(filter){
     }
   });
   // Team-level historical corrections are independent of individual player opening totals.
+  if(filter.season&&!filter.comp){
+    const o=team().seasonStatsOverrides?.[filter.season]||{};
+    for(const [k,v] of Object.entries(o)) if(['P','W','D','L','GF','GA'].includes(k)&&Number.isFinite(+v)&&+v>=0) T[k]=+v;
+  }
   if(!filter.season&&!filter.comp){
     const o={...( /askern miners/i.test(team().name||'') ? {GF:753,GA:376} : {}),...(team().statsOverride||{})};
     for(const [k,v] of Object.entries(o)) if(['P','W','D','L','GF','GA'].includes(k)&&Number.isFinite(+v)&&+v>=0) T[k]=+v;
@@ -970,7 +974,7 @@ function vStats(){
    <div class="card stack"><div class="eyebrow">Team attendance · completed tracked fixtures</div><div class="scroll-x"><table class="mtab"><thead><tr><th>Player</th><th>Played</th><th>Missed</th><th>Injured</th><th>Available unused</th><th>Attendance</th></tr></thead><tbody>${squad().map(p=>{const rr=attendanceRows(p.id).filter(x=>!ui.filter?.season||fixtureSeason(x.f)===ui.filter.season);const n=k=>rr.filter(x=>x.status===k).length;const played=n('Played'),missed=n('Injured')+n('Unavailable')+n('Not selected'),eligible=played+missed;return '<tr><td>'+esc(p.name)+'</td><td>'+played+'</td><td>'+missed+'</td><td>'+n('Injured')+'</td><td>'+n('Available but unused')+'</td><td>'+(eligible?Math.round(played/eligible*100)+'%':'—')+'</td></tr>';}).join('')}</tbody></table></div><p class="small muted">Future fixtures and imported historical results without player attendance are excluded. Available but unused is not counted as a missed game.</p></div>
    <div class="grid2"><select class="input" data-a="filter" data-k="season"><option value="">All seasons</option>${seasons.map(s=>`<option value="${esc(s)}" ${ui.filter?.season===s?'selected':''}>${esc(seasonLabel(s))}</option>`).join('')}</select>
    <select class="input" data-a="filter" data-k="comp"><option value="">All competitions</option>${comps.map(s=>`<option ${ui.filter?.comp===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
-   <div class="card stack stats-overview"><div class="row between"><div class="eyebrow">Team record</div>${allTime?'<button class="btn sm primary" data-a="editTeamStats">Edit stats</button>':''}</div>
+   <div class="card stack stats-overview"><div class="row between"><div class="eyebrow">Team record</div>${allTime?'<button class="btn sm primary" data-a="editTeamStats">Edit stats</button>':(!ui.filter?.comp?'<button class="btn sm primary" data-a="editSeasonStats" data-season="'+esc(ui.filter.season)+'">Edit season</button>':'')}</div>
     <div class="stats-summary num">
       <div class="stats-summary-main"><span class="stats-summary-value">${T.P}</span><span class="stats-summary-label">Matches played</span></div>
       <div class="stats-wdl"><div><strong>${T.W}</strong><span>Won</span></div><div><strong>${T.D}</strong><span>Drawn</span></div><div><strong>${T.L}</strong><span>Lost</span></div></div>
@@ -982,7 +986,7 @@ function vStats(){
    <div class="card stack"><div class="row between"><div class="eyebrow">Season breakdown</div><span class="small muted">Tap to drill down</span></div>
    ${seasons.filter(y=>y<=season(new Date().toISOString().slice(0,10))).sort().reverse().map(y=>{const z=computeStats({season:y,comp:ui.filter?.comp||''}),t=z.T;return '<button class="li" data-a="selectStatsSeason" data-season="'+esc(y)+'" style="text-align:left"><span class="main"><b>'+esc(seasonLabel(y))+'</b><span class="small muted" style="display:block">'+t.P+' played · '+t.W+'W '+t.D+'D '+t.L+'L</span></span><span class="num">'+t.GF+'–'+t.GA+'</span><span>›</span></button>'}).join('')}
    ${ui.filter?.season?'<button class="btn sm" data-a="selectStatsSeason" data-season="">Back to all seasons</button>':''}
-   <p class="small muted">Season figures use recorded fixtures and season-specific player records. All-time corrections are kept separate; missing historical fixtures are not invented.</p></div>
+   <p class="small muted">Tap a season to review and edit its historical record. All-time totals remain independently editable. Differences between season totals and all-time totals should be reconciled rather than automatically assigned to a season.</p></div>
    <div class="card stack stats-players"><div class="row between"><div class="eyebrow">Player leaderboard</div><span class="small muted">Select a statistic</span></div>
     <div class="stats-leader-tabs" role="group" aria-label="Player statistic"><button type="button" class="stats-leader-tab active" data-stat="goals">Goals</button><button type="button" class="stats-leader-tab" data-stat="apps">Apps</button><button type="button" class="stats-leader-tab" data-stat="assists">Assists</button><button type="button" class="stats-leader-tab" data-stat="motm">MOTM</button><button type="button" class="stats-leader-tab" data-stat="min">Minutes</button></div>
     <div class="stats-leader-list" data-leaderboard>
@@ -1342,6 +1346,21 @@ const A = {
   runGoalAudit(){ui.historyReviewOnly=true;toast('Full fixture audit complete — review matches listed below');},
   toggleHistoryReview(){ui.historyReviewOnly=!ui.historyReviewOnly;},
   toggleGoalReview(){ui.showGoalReview=!ui.showGoalReview;},
+  editSeasonStats(d){
+    const y=d.season||ui.filter?.season;
+    if(!y)return 'keep';
+    const t=team(), existing=t.seasonStatsOverrides?.[y]||{}, current=computeStats({season:y});
+    const next={...existing};
+    for(const [key,label] of [['P','Matches played'],['W','Wins'],['D','Draws'],['L','Losses'],['GF','Goals scored'],['GA','Goals conceded']]){
+      const raw=prompt(seasonLabel(y)+' · '+label,String(existing[key]??current.T[key]));
+      if(raw===null)return 'keep';
+      if(!/^\\d+$/.test(raw.trim())){toast('Enter a whole number for '+label);return 'keep';}
+      next[key]=Number(raw);
+    }
+    if(next.W+next.D+next.L!==next.P){toast('Wins, draws and losses must equal matches played');return 'keep';}
+    t.seasonStatsOverrides={...(t.seasonStatsOverrides||{}),[y]:next};
+    save();toast('Season totals saved');
+  },
   editTeamStats(){
     const t=team(), o=t.statsOverride||{}, current=computeStats({});
     const fields=[['P','Matches played'],['W','Wins'],['D','Draws'],['L','Losses'],['GF','Goals scored'],['GA','Goals conceded']];
