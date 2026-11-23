@@ -764,9 +764,11 @@ function vHome(){
 function vSquad(){
   const ps=squad();
   const former=db.players.filter(p=>p.teamId===team().id&&p.active===false).sort((a,b)=>a.name.localeCompare(b.name));
+  const staff=team().coachingStaff||[];
   return `<div class="stack">
-   <div class="row between"><h2>Squad <span class="muted num" style="font-size:18px">${ps.length}</span></h2><button class="btn primary" data-a="editPlayer">Add player</button></div>
-   <div class="card"><div class="list">${ps.map(p=>`<button class="li" data-a="openPlayerProfile" data-id="${p.id}"><div class="shirt" style="overflow:hidden">${p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover" alt="">':(p.number??'')}</div><div class="main"><div class="title">${esc(p.name)} ${p.sample?'<span class="pill ex">Example</span>':''}</div><div class="row" style="gap:4px;margin-top:3px">${p.pos.length?p.pos.map((c,i)=>`<span class="pos ${i===0?'p1':''}">${c}</span>`).join(''):'<span class="pill">Positions not set</span>'}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">No players yet. Add your squad to start picking teams.</p>'}</div></div>
+   <div class="row between"><h2>Squad</h2><button class="btn primary" data-a="editPlayer">Add player</button></div>
+   <div class="card stack"><div class="eyebrow">Current squad · ${ps.length}</div><div class="list">${ps.map(p=>`<button class="li" data-a="openPlayerProfile" data-id="${p.id}"><div class="shirt" style="overflow:hidden">${p.photo?'<img src="'+p.photo+'" style="width:100%;height:100%;object-fit:cover" alt="">':(p.number??'')}</div><div class="main"><div class="title">${esc(p.name)} ${p.sample?'<span class="pill ex">Example</span>':''}</div><div class="row" style="gap:4px;margin-top:3px">${p.pos.length?p.pos.map((c,i)=>`<span class="pos ${i===0?'p1':''}">${c}</span>`).join(''):'<span class="pill">Positions not set</span>'}</div></div><span class="muted">›</span></button>`).join('')||'<p class="muted">No players yet. Add your squad to start picking teams.</p>'}</div></div>
+   <div class="card stack"><div class="row between"><div class="eyebrow">Coaching staff · ${staff.length}</div><div class="row"><button class="btn sm" data-a="addCoach">+ Add</button><button class="btn sm" data-a="toggleCoaches">${ui.showCoaches?'Hide':'Show'}</button></div></div>${ui.showCoaches?'<div class="list">'+(staff.map(c=>'<button class="li" data-a="editCoach" data-id="'+c.id+'"><span class="main"><b>'+esc(c.name)+'</b><div class="small muted">'+esc(c.role||'Coach')+' · '+(c.qualifications||[]).length+' qualifications</div></span><span>›</span></button>').join('')||'<p class="small muted">No coaching staff yet.</p>')+'</div>':''}</div>
    ${former.length?'<div class="card stack"><div class="row between"><div class="eyebrow">Former players · '+former.length+'</div><button class="btn sm" data-a="toggleFormerPlayers" aria-expanded="'+!!ui.showFormerPlayers+'">'+(ui.showFormerPlayers?'Hide':'Show')+'</button></div>'+(ui.showFormerPlayers?'<p class="small muted">Archived players are excluded from the current squad. Tap to view or edit their history.</p><div class="list">'+former.map(p=>'<button class="li" data-a="openPlayerProfile" data-id="'+p.id+'"><div class="main"><div class="title">'+esc(p.name)+'</div><div class="small muted">'+esc(p.startSeason?seasonLabel(p.startSeason):'Start unknown')+' – '+esc(p.leavingSeason?seasonLabel(p.leavingSeason):'Leaving unknown')+'</div></div><span class="muted">›</span></button>').join('')+'</div>':'')+'</div>':''}
   </div>`;
 }
@@ -796,6 +798,19 @@ function vPlayerProfile(){
  <div class="card stack"><div class="eyebrow">Match attendance · tracked fixtures</div>${(()=>{const rows=attendanceRows(p.id);const counts={};rows.forEach(r=>counts[r.status]=(counts[r.status]||0)+1);return '<div class="grid2">'+[['Played',counts.Played||0],['Missed',(counts.Injured||0)+(counts.Unavailable||0)+(counts['Not selected']||0)],['Injured',counts.Injured||0],['Available unused',counts['Available but unused']||0]].map(([k,n])=>'<div style="padding:10px;background:var(--surface-2);border-radius:10px"><b>'+n+'</b><div class="small muted">'+k+'</div></div>').join('')+'</div>'+(rows.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Fixture</th><th>Status</th></tr></thead><tbody>'+rows.map(({f,status})=>'<tr><td>'+esc(fmtDate(f.date))+' · '+esc(f.opponent)+'</td><td>'+esc(status)+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Attendance builds when new matches are completed.</p>');})()}</div>
  <div class="card stack"><div class="eyebrow">Coaching notes</div><p style="white-space:pre-wrap;margin:0">${esc(p.notes||'No notes recorded yet.')}</p><button class="btn sm" data-a="editPlayer" data-id="${p.id}">Edit notes</button></div>
  </div>`;
+}
+function sheetCoach(){
+ const c=(team().coachingStaff||[]).find(x=>x.id===ui.sheet.id)||{};
+ return `<h2>${c.id?'Edit coaching profile':'Add coaching staff'}</h2>
+ <label class="f">Name<input class="input" id="coachName" value="${esc(c.name||'')}"></label>
+ <label class="f">Role<select class="input" id="coachRole">${['Manager','Assistant Manager','Coach','Goalkeeper Coach','Other'].map(x=>'<option '+(c.role===x?'selected':'')+'>'+x+'</option>').join('')}</select></label>
+ <label class="f">Date joined<input class="input" id="coachJoined" type="date" value="${esc(c.joined||'')}"></label>
+ <label class="f">Qualifications — one per line (name | status | expiry date)<textarea class="input" id="coachQualifications" rows="5">${esc((c.qualifications||[]).map(q=>[q.name,q.status,q.expiry].join(' | ')).join('\n'))}</textarea></label>
+ <p class="small muted">Status: Completed, In Progress or Expired. Expiry date is optional.</p>
+ <label class="f">Coaching experience<textarea class="input" id="coachExperience">${esc(c.experience||'')}</textarea></label>
+ <label class="f">Responsibilities / notes<textarea class="input" id="coachNotes">${esc(c.notes||'')}</textarea></label>
+ <div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveCoach">Save profile</button></div>
+ ${c.id?'<button class="btn danger" data-a="deleteCoach">Remove staff member</button>':''}`;
 }
 function sheetHonour(){const q=ui.sheet,p=player(q.id),h=(p.honours||[]).find(x=>x.id===q.hid)||{},ys=[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),h.season].filter(Boolean))].sort();return '<h2>'+(q.hid?'Edit':'Add')+' award or trophy</h2><label class="f">Type<select class="input" id="honourType"><option value="Award" '+(h.type!=='Trophy'?'selected':'')+'>Individual award</option><option value="Trophy" '+(h.type==='Trophy'?'selected':'')+'>Trophy</option></select></label><label class="f">Name<input class="input" id="honourName" value="'+esc(h.name||'')+'" placeholder="e.g. Players Player of the Year"></label><label class="f">Season<select class="input" id="honourSeason">'+ys.map(y=>'<option value="'+esc(y)+'" '+(h.season===y?'selected':'')+'>'+esc(seasonLabel(y))+'</option>').join('')+'</select></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveHonour">Save</button></div>'+(q.hid?'<button class="btn danger" data-a="deleteHonour">Remove award</button>':'');}
 function sheetPlayer(id){
@@ -1196,6 +1211,7 @@ function renderSheet(){
   let h='';
   const k=ui.sheet.k;
   if(k==='player') h=sheetPlayer(ui.sheet.id);
+  if(k==='coach') h=sheetCoach();
   if(k==='honour') h=sheetHonour();
   if(k==='fixture') h=sheetFixture(ui.sheet.id);
   if(k==='opponent') h=sheetOpponent();
@@ -1404,6 +1420,15 @@ const A = {
   saveNotes(){const f=fixture(ui.sheet.id);f.coachingNotes={good:val('noteGood'),improve:val('noteImprove'),training:val('noteTraining')};ui.sheet=null;toast('Coaching notes saved');},
   editFx(d){ ui.sheet={k:'fixture',id:d.id}; ui.confirm=null; },
   openPlayerProfile(d){ui.profilePlayerId=d.id;ui.view='playerProfile';window.scrollTo(0,0);},
+  toggleCoaches(){ui.showCoaches=!ui.showCoaches;},
+  addCoach(){ui.showCoaches=true;ui.sheet={k:'coach'};},
+  editCoach(d){ui.sheet={k:'coach',id:d.id};},
+  saveCoach(){const t=team(),name=val('coachName').trim();if(!name){toast('Enter a name');return 'keep';}
+    t.coachingStaff=t.coachingStaff||[];
+    const qualifications=val('coachQualifications').split('\n').map(line=>line.trim()).filter(Boolean).map(line=>{const [name,status,expiry]=line.split('|').map(x=>x.trim());return {name,status:status||'Completed',expiry:expiry||''};});
+    const data={name,role:val('coachRole'),joined:val('coachJoined'),qualifications,experience:val('coachExperience'),notes:val('coachNotes')};
+    const old=t.coachingStaff.find(x=>x.id===ui.sheet.id);if(old)Object.assign(old,data);else t.coachingStaff.push({id:uid(),...data});ui.sheet=null;toast('Coaching profile saved');},
+  deleteCoach(){team().coachingStaff=(team().coachingStaff||[]).filter(x=>x.id!==ui.sheet.id);ui.sheet=null;toast('Coaching profile removed');},
   toggleFormerPlayers(){ui.showFormerPlayers=!ui.showFormerPlayers;},
   toggleStatsOpponents(){ui.showStatsOpponents=!ui.showStatsOpponents;},
   toggleStatSeasons(){ui.showAllStatSeasons=!ui.showAllStatSeasons;},
