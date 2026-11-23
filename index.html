@@ -647,6 +647,13 @@ function finishMatch(fx,m){
 function validMatchScore(f){return Number.isInteger(+f.score?.us)&&Number.isInteger(+f.score?.them)&&+f.score.us>=0&&+f.score.them>=0&&+f.score.us<=99&&+f.score.them<=99;}
 function computeStats(filter){
   const fxs=fixtures().filter(f=>f.status==='played'&&f.score&&validMatchScore(f)).filter(f=>(!filter.season||fixtureSeason(f)===filter.season)&&(!filter.comp||f.competition===filter.comp));
+  // Repair the known Archie double-count: his five season records total 249,
+  // while a duplicated opening total previously showed 498.
+  const archie=db.players.find(p=>p.teamId===team().id&&p.name?.trim().toLowerCase()==='archie');
+  if(archie&&+archie.openingStats?.goals===498){
+    const seasonSum=Object.values(archie.historicalGoalsBySeason||{}).reduce((n,v)=>n+(+v||0),0);
+    if(seasonSum===249){archie.openingStats.goals=249;archie.historicalUnallocatedGoals=0;save();}
+  }
   const ps={}; db.players.filter(p=>p.teamId===team().id).forEach(p=>ps[p.id]={p,apps:0,starts:0,subs:0,min:0,goals:0,assists:0,motm:0,star:0,pos:{}});
   const pitch={};
   // Opening totals are independent of imported match scores.
@@ -771,7 +778,7 @@ function vPlayerProfile(){
  <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="squad">‹ Squad</button><button class="btn primary sm" data-a="editPlayer" data-id="${p.id}">Edit profile</button></div>
  <div class="card"><div class="row" style="align-items:center;gap:18px">${photo}<div><h2>${esc(p.name)}</h2><div class="muted">#${p.number??'—'} · ${esc((p.pos||[]).join(' / ')||'Position not set')}</div><span class="pill">${p.active===false?'Former player':'Active squad'}</span></div></div></div>
  <div class="card"><div class="eyebrow">Time with the team</div><div style="margin-top:6px">${esc(p.startSeason?seasonLabel(p.startSeason):'Starting season unknown')} – ${esc(p.leavingSeason?seasonLabel(p.leavingSeason):'Present')}</div></div>
- <div class="card stack"><div class="eyebrow">Career statistics</div><div class="grid2">${[['Appearances',career?.apps||0,'seasonBreakdown'],['Goals',career?.goals||0,'seasonBreakdown'],['Assists',career?.assists||0,'seasonBreakdown'],['POTM',career?.motm||0,'seasonBreakdown'],['Awards',(p.honours||[]).filter(h=>h.type!=='Trophy').length,'awardsHonours'],['Honours',(p.honours||[]).filter(h=>h.type==='Trophy').length,'awardsHonours']].map(([k,v,target])=>'<a href="#'+target+'" style="display:block;padding:12px;background:var(--surface-2);border-radius:10px;color:inherit;text-decoration:none" aria-label="View '+k+' details"><div class="stat-n num">'+v+'</div><div class="small muted">'+k+' ›</div></a>').join('')}</div><p class="small muted">Career totals combine opening records and completed fixtures. Tap a statistic for details.</p></div>
+ <div class="card stack"><div class="row between"><div class="eyebrow">Career statistics</div><button class="btn sm primary" data-a="editCareerGoals" data-id="${p.id}">Edit goals</button></div><div class="grid2">${[['Appearances',career?.apps||0,'seasonBreakdown'],['Goals',career?.goals||0,'seasonBreakdown'],['Assists',career?.assists||0,'seasonBreakdown'],['POTM',career?.motm||0,'seasonBreakdown'],['Awards',(p.honours||[]).filter(h=>h.type!=='Trophy').length,'awardsHonours'],['Honours',(p.honours||[]).filter(h=>h.type==='Trophy').length,'awardsHonours']].map(([k,v,target])=>'<a href="#'+target+'" style="display:block;padding:12px;background:var(--surface-2);border-radius:10px;color:inherit;text-decoration:none" aria-label="View '+k+' details"><div class="stat-n num">'+v+'</div><div class="small muted">'+k+' ›</div></a>').join('')}</div><p class="small muted">Career totals combine opening records and completed fixtures. Tap a statistic for details.</p></div>
  <div class="card stack" id="seasonBreakdown"><div class="eyebrow">Season-by-season · historical + tracked</div>${summary.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Season</th><th>Apps</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead><tbody>'+summary.map(r=>'<tr><td>'+esc(seasonLabel(r.y))+'</td><td>'+r.apps+'</td><td>'+r.goals+'</td><td>'+r.assists+'</td><td>'+r.motm+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Season records will build as you complete and record new matches. Allocate historical goals by season in Edit profile.</p>'}</div>
  <div class="card stack" id="awardsHonours"><div class="row between"><div class="eyebrow">Awards & honours</div><button class="btn sm primary" data-a="addHonour" data-id="${p.id}">+ Add</button></div>${(p.honours||[]).length?(p.honours||[]).slice().sort((a,b)=>b.season.localeCompare(a.season)).map(a=>'<div class="row between" style="gap:8px"><div><b>'+esc(a.name)+'</b><div class="small muted">'+esc(seasonLabel(a.season))+' · '+esc(a.type)+'</div></div><button class="btn sm" data-a="editHonour" data-id="'+p.id+'" data-hid="'+a.id+'">Edit</button></div>').join(''):'<p class="small muted">No awards or trophies recorded yet.</p>'}</div>
  <div class="card stack"><div class="row between"><div class="eyebrow">Training attendance by season</div><button class="btn sm primary" data-a="editHistoricalAttendance" data-id="${p.id}">Historical totals</button></div>${[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),...Object.keys(p.historicalAttendance||{}),...(team().trainingSessions||[]).map(x=>season(x.date))])].sort().reverse().map(y=>{const a=trainingAttendance(p,y);return a.total?'<div class="row between"><span>'+esc(seasonLabel(y))+'</span><b>'+a.present+' / '+a.total+' ('+Math.round(100*a.present/a.total)+'%)</b></div>':'';}).filter(Boolean).join('')||'<p class="small muted">No training attendance yet.</p>'}</div>
@@ -1353,6 +1360,23 @@ const A = {
     t.statsOverride=o;save();toast('Goal categories saved');
   },
   toggleTrainingStats(){ui.showTrainingStats=!ui.showTrainingStats;},
+  editCareerGoals(d){
+    const p=player(d.id);if(!p)return 'keep';
+    const current=computeStats({}).players.find(r=>r.p.id===p.id)?.goals||0;
+    const raw=prompt('Correct all-time career goals for '+p.name, String(current));
+    if(raw===null)return 'keep';
+    if(!/^\\d+$/.test(raw.trim())){toast('Enter a valid whole number');return 'keep';}
+    const target=Number(raw);
+    const tracked=fixtures().filter(f=>f.status==='played'&&!f.imported).reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length+(f.penalties?.taken?(f.penalties.kicks||[]).filter(k=>k.pid===p.id&&k.scored).length:0),0);
+    if(target<tracked){toast('The total is below recorded match goals. Correct those fixtures first.');return 'keep';}
+    const historical=target-tracked;
+    const seasonal=Object.values(p.historicalGoalsBySeason||{}).reduce((n,v)=>n+(+v||0),0);
+    p.openingStats={...(p.openingStats||{}),goals:historical};
+    p.historicalUnallocatedGoals=Math.max(0,historical-seasonal);
+    if(seasonal>historical)toast('Career total saved. Season allocations exceed the new historical total; review season figures.');
+    else toast('Career goals updated to '+target);
+    save();
+  },
   editPlayer(d){ ui.sheet={k:'player',id:d.id||null}; ui.confirm=null; },
   closeSheet(){ ui.sheet=null; ui.confirm=null; },
   confirm(d){ ui.confirm=d.k||null; },
