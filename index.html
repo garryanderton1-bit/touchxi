@@ -1184,11 +1184,11 @@ function formationEditorPitch(){
 }
 function sheetCustomFormation(){
  const q=ui.sheet,fx=q.fxId?fixture(q.fxId):null,t=team(),f=(db.customFormations||[]).find(x=>x.id===q.id),fmt=f?.format||fx?.format||t.format;
- if(!q.customSlots){q.selectedFormationSlot=0;q.customSlots=(f?.slots||makeCustomSlots(f?.rows||((+fmt===9)?[3,2,3]:(+fmt===7)?[2,3,1]:[2,2]))).map(x=>({...x}));q.customFormat=fmt;}
+ if(!q.customSlots){q.selectedFormationSlot=0;q.customSlots=(f?.slots||makeCustomSlots(f?.rows||((+fmt===11)?[4,3,3]:(+fmt===9)?[3,2,3]:(+fmt===7)?[2,3,1]:[2,2]))).map(x=>({...x}));q.customFormat=fmt;}
  return `<h2>${f?'Edit':'Create'} custom formation</h2><p class="small muted">Build the formation visually. Move the positions to the exact areas of the pitch you want. These are roles, not specific players; TouchXI will select players for them when you use the formation.</p>
  <label class="f">Formation name<input class="input" id="cfName" maxlength="15" value="${esc(f?.name||'')}" placeholder="e.g. High Press"></label>
  <label class="f">Match format<select class="input" id="cfFormat" data-a="formationFormat">${FORMATS.map(n=>`<option value="${n}" ${+n===+q.customFormat?'selected':''}>${n}v${n}</option>`).join('')}</select></label>
- <label class="f">Outfield lines<input class="input" id="cfRows" value="${esc(q.customRows||f?.rows?.join('-')||((+q.customFormat===9)?'3-2-3':(+q.customFormat===7)?'2-3-1':'2-2'))}" placeholder="e.g. 2-4-2"></label>
+ <label class="f">Outfield lines<input class="input" id="cfRows" value="${esc(q.customRows||f?.rows?.join('-')||((+q.customFormat===11)?'4-3-3':(+q.customFormat===9)?'3-2-3':(+q.customFormat===7)?'2-3-1':'2-2'))}" placeholder="e.g. 2-4-2"></label>
  <button class="btn sm" data-a="formationApplyRows">Generate positions from lines</button>
  ${formationEditorPitch()}
  <label class="f">Style<select class="input" id="cfStyle">${STYLES.map(x=>`<option ${x===(f?.style||'Balanced')?'selected':''}>${x}</option>`).join('')}</select></label>
@@ -1350,8 +1350,8 @@ const A = {
   confirmSquad(){ const f=curFx();f.squadConfirmed=!f.squadConfirmed;toast(f.squadConfirmed?'Matchday squad confirmed':'Edit availability'); },
   availAll(){ const f=curFx(); f.available=squad().map(p=>p.id).filter(id=>!(f.injured||[]).includes(id));f.prefs=f.prefs||{};Object.keys(f.prefs).forEach(id=>{if(f.prefs[id]==='unavailable')delete f.prefs[id]}); autoPlan(f,false); },
   availNone(){ const f=curFx(); f.prefs=f.prefs||{};f.available.forEach(id=>{if(!(f.injured||[]).includes(id))f.prefs[id]='unavailable'});f.available=[]; autoPlan(f,false); },
-  newCustomFormation(d){ui.sheet={k:'customFormation',fxId:d.fx||ui.fxId||null};},
-  editCustomFormation(d){ui.sheet={k:'customFormation',id:d.id,fxId:ui.fxId||null};},
+  newCustomFormation(d){ui.sheet={k:'customFormation',fxId:d.fx||null};},
+  editCustomFormation(d){ui.sheet={k:'customFormation',id:d.id,fxId:d.fx||null};},
   formationApplyRows(){const raw=val('cfRows').trim(),rows=raw.split('-').map(Number),format=+val('cfFormat');if(!/^\d+(?:-\d+){0,4}$/.test(raw)||rows.some(n=>n<1||n>6)||rows.reduce((a,b)=>a+b,0)!==format-1){toast('Outfield lines must total '+(format-1));return 'keep';}ui.sheet.customSlots=makeCustomSlots(rows);ui.sheet.customRows=raw;ui.sheet.customFormat=format;return;},
   saveCustomFormation(){const q=ui.sheet,name=val('cfName').trim(),format=+val('cfFormat'),raw=val('cfRows').trim(),rows=raw.split('-').map(x=>+x),style=val('cfStyle');if(!name||name.length>15){toast('Use a name of 1–15 characters');return 'keep';}if(!/^\d+(?:-\d+){0,4}$/.test(raw)||rows.some(n=>n<1||n>6)||rows.reduce((a,b)=>a+b,0)!==format-1){toast('Lines must add up to '+(format-1)+' outfield players');return 'keep';}db.customFormations=db.customFormations||[];const old=q.id?db.customFormations.find(x=>x.id===q.id&&x.teamId===team().id):null;const slots=customDraftSlots().map(x=>({...x}));if(slots.length!==format||slots[0].code!=='GK'){toast('Generate the correct number of positions before saving');return 'keep';}const values={name,format,style,rows,slots,custom:true};if(old){if(old.format!==format&&fixtures().some(f=>f.formationId===old.id||f.match?.formationId===old.id)){toast('Cannot change format of a formation already used in fixtures');return 'keep';}Object.assign(old,values);}else db.customFormations.push({id:'custom:'+uid(),teamId:team().id,...values});ui.sheet=null;ui.styleTab=style;toast('Custom formation saved for future fixtures');},
   removeCustomFormation(){const q=ui.sheet,f=(db.customFormations||[]).find(x=>x.id===q.id);if(!f)return;if(fixtures().some(x=>x.formationId===f.id||x.match?.formationId===f.id)){toast('Formation used by a fixture; cannot delete');return 'keep';}db.customFormations=db.customFormations.filter(x=>x.id!==f.id);if(team().defaultFormationId===f.id)team().defaultFormationId=null;team().favs=(team().favs||[]).filter(x=>x!==f.id);ui.sheet=null;toast('Custom formation deleted');},
