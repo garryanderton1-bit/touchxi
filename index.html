@@ -395,7 +395,7 @@ function sheetOpponent(){
 function sheetCoachingNotes(){const f=fixture(ui.sheet.id),n=f.coachingNotes||{};return `<h2>Coaching notes · ${esc(f.opponent)}</h2><label class="f">What went well<textarea class="input" id="noteGood" rows="3">${esc(n.good||'')}</textarea></label><label class="f">What needs improving<textarea class="input" id="noteImprove" rows="3">${esc(n.improve||'')}</textarea></label><label class="f">Focus for next training<textarea class="input" id="noteTraining" rows="3">${esc(n.training||'')}</textarea></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveNotes">Save notes</button></div>`;}
 
 const fitIds = fx => fx.available.filter(id=>player(id)&&!(fx.injured||[]).includes(id)&&fx.prefs?.[id]!=='unavailable');
-function attendanceStatus(f,pid){if(f.status!=='played'||f.imported||!f.score)return null;if(f.match?.stints?.some(x=>x.pid===pid&&((x.to??f.match.totalSec??0)>x.from)))return 'Played';if((f.injured||[]).includes(pid))return 'Injured';if(f.prefs?.[pid]==='unavailable')return 'Unavailable';if(!f.available?.includes(pid))return 'Not selected';return 'Available but unused';}
+function attendanceStatus(f,pid){if(f.status!=='played'||f.imported||!f.score)return null;if((Array.isArray(f.matchSquad)?f.matchSquad:(f.squadConfirmed?fitIds(f):[])).includes(pid)||f.match?.stints?.some(x=>x.pid===pid&&((x.to??f.match.totalSec??0)>x.from)))return 'Played';if((f.injured||[]).includes(pid))return 'Injured';if(f.prefs?.[pid]==='unavailable')return 'Unavailable';if(!f.available?.includes(pid))return 'Not selected';return 'Available but unused';}
 function attendanceRows(pid){return fixtures().filter(f=>f.status==='played'&&!f.imported&&f.score&&f.attendanceTracked!==false).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(f=>({f,status:attendanceStatus(f,pid)})).filter(x=>x.status);}
 
 /* ============================ Helpers ============================ */
@@ -640,6 +640,7 @@ function finishMatch(fx,m){
   m.stints.forEach(s=>{if(s.to===null) s.to=at});
   m.ended=true; m.totalSec=at;
   fx.status='played'; fx.score={us:m.us,them:m.them};
+  if(fx.squadConfirmed)fx.matchSquad=fitIds(fx).slice();
   fx.scorers=m.events.filter(e=>e.type==='goal').map(e=>({pid:e.scorer,assist:e.assist||null}));
 }
 
@@ -667,7 +668,11 @@ function computeStats(filter){
     if(!f.imported&&f.penalties?.taken) (f.penalties.kicks||[]).forEach(k=>{if(k.scored&&ps[k.pid])ps[k.pid].goals++;});
     if(f.match){ const seen={};
       f.match.stints.forEach(s=>{ const r=ps[s.pid]; if(!r) return; r.min+=(s.to-s.from)/60; r.pos[s.code]=(r.pos[s.code]||0)+(s.to-s.from); if(!seen[s.pid]){seen[s.pid]=s.from<1?'start':'sub';} });
-      Object.entries(seen).forEach(([id,k])=>{ ps[id].apps++; if(k==='start') ps[id].starts++; else ps[id].subs++; });
+      const ids=Array.isArray(f.matchSquad)?f.matchSquad:(f.squadConfirmed?fitIds(f):Object.keys(seen));
+      [...new Set([...ids,...Object.keys(seen)])].forEach(id=>{if(!ps[id])return;ps[id].apps++;if(seen[id]==='start')ps[id].starts++;else if(seen[id]==='sub')ps[id].subs++;});
+    } else if(!f.imported){
+      const ids=Array.isArray(f.matchSquad)?f.matchSquad:(f.squadConfirmed?fitIds(f):[]);
+      [...new Set(ids)].forEach(id=>{if(ps[id])ps[id].apps++;});
     }
   });
   // Team-level historical corrections are independent of individual player opening totals.
@@ -774,7 +779,7 @@ function vPlayerProfile(){
   const goals=(+p.historicalGoalsBySeason?.[y]||0)+games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length+(f.penalties?.taken?(f.penalties.kicks||[]).filter(k=>k.pid===p.id&&k.scored).length:0),0);
   const assists=games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.assist===p.id).length,0);
   const motm=(+p.historicalMotmBySeason?.[y]||0)+games.filter(f=>f.motm===p.id).length;
-  const apps=(+p.historicalAppsBySeason?.[y]||0)+games.filter(f=>f.match?.stints?.some(x=>x.pid===p.id)).length;
+  const apps=(+p.historicalAppsBySeason?.[y]||0)+games.filter(f=>Array.isArray(f.matchSquad)?f.matchSquad.includes(p.id):(f.squadConfirmed?fitIds(f).includes(p.id):!!f.match?.stints?.some(x=>x.pid===p.id))).length;
   return {y,apps,goals,assists,motm};
  }).filter(x=>x.apps||x.goals||x.assists||x.motm);
  const photo=p.photo?'<img src="'+p.photo+'" alt="" style="width:110px;height:110px;border-radius:50%;object-fit:cover">':'<div class="shirt" style="width:110px;height:110px;border-radius:50%;font-size:42px">'+(p.number??'—')+'</div>';
@@ -829,7 +834,7 @@ function vFixtures(){
  const done=fxs.filter(f=>f.status==='played').sort((a,b)=>b.date.localeCompare(a.date));
  const pastTraining=training.filter(x=>x.date<today).sort((a,b)=>b.date.localeCompare(a.date));
  const tab=ui.scheduleTab||'upcoming', expanded=!!ui.scheduleExpanded;
- const eventRow=x=>x.eventType==='event'?'<button class="li" data-a="editEvent" data-id="'+x.id+'"><span class="main"><b>'+esc(x.title||'Team event')+'</b><div class="small muted">'+esc(fmtDate(x.date))+' · '+esc(x.time||'')+' · '+esc(x.venue||'')+'</div></span><span>Details ›</span></button>':x.eventType==='training'?'<button class="li" data-a="editTraining" data-id="'+x.id+'"><span class="main"><b>Training</b><div class="small muted">'+esc(fmtDate(x.date))+' · '+(x.present?.length||0)+' present</div></span><span>Attendance ›</span></button>':fxRow(x);
+ const eventRow=x=>x.eventType==='event'?'<button class="li" data-a="editEvent" data-id="'+x.id+'"><span class="main"><b>'+esc(x.title||'Team event')+'</b><div class="small muted">'+esc(fmtDate(x.date))+' · '+esc(x.time||'')+' · '+esc(x.venue||'')+'</div></span><span>Details ›</span></button>':x.eventType==='training'?'<button class="li" data-a="editTraining" data-id="'+x.id+'"><span class="main"><b>Training</b><div class="small muted">'+esc(fmtDate(x.date))+' · '+(x.confirmed?'Register confirmed · '+(x.present?.length||0)+' present':'Attendance not confirmed')</div></span><span>Attendance ›</span></button>':fxRow(x);
  const history=[...done.map(x=>({...x,eventType:'match'})),...pastTraining,...events.filter(x=>x.date<today)].sort((a,b)=>b.date.localeCompare(a.date));
  const historyFiltered=history.filter(x=>(!ui.scheduleSeason||season(x.date)===ui.scheduleSeason)&&(!ui.scheduleType||x.eventType===ui.scheduleType));
  const years=[...new Set(history.map(x=>season(x.date)))].sort().reverse();
@@ -1278,9 +1283,9 @@ function sheetTraining(){
  <label class="f">Location<input class="input" id="trainingVenue" value="${esc(session.venue||'Campsmount Academy')}" placeholder="Training venue"></label>
  ${!q.id?'<label class="f">Repeat<select class="input" id="trainingRepeat"><option value="none">One session</option><option value="weekly">Every week</option></select></label><label class="f">Repeat until<input class="input" type="date" id="trainingUntil" value=""></label><p class="small muted">Weekly sessions are created up to the chosen end date (maximum 52 weeks). Attendance is marked separately for each date.</p>':''}
  <div class="row between"><b>Attendance</b><button class="btn sm" data-a="trainingMarkAll">Mark all present</button></div>
- <p class="small muted">Select each player's status. Not marked is excluded from attendance calculations.</p>
- ${ps.map(p=>{const status=session.statuses?.[p.id]||((session.present||[]).includes(p.id)?'present':'');return '<label class="f" style="padding:7px 0"><span>'+esc(p.name)+'</span><select class="input" data-training-status="'+p.id+'"><option value="" '+(!status?'selected':'')+'>Not marked</option>'+[['present','Present'],['absent','Absent'],['injured','Injured'],['excused','Excused']].map(([v,l])=>'<option value="'+v+'" '+(status===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>';}).join('')}
- <div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveTraining">Save</button></div>
+ <p class="small muted">Everyone defaults to Present. Change absences, then confirm the register. Unconfirmed sessions do not count.</p>
+ ${ps.map(p=>{const status=session.confirmed?(session.statuses?.[p.id]||((session.present||[]).includes(p.id)?'present':'absent')):'present';return '<label class="f" style="padding:7px 0"><span>'+esc(p.name)+'</span><select class="input" data-training-status="'+p.id+'">'+(!status?'selected':'')+'>Not marked</option>'+[['present','Present'],['absent','Absent'],['injured','Injured'],['excused','Excused']].map(([v,l])=>'<option value="'+v+'" '+(status===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>';}).join('')}
+ <div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveTraining">${q.id?"Confirm attendance":"Schedule session"}</button></div>
  ${q.id?'<button class="btn danger" data-a="deleteTraining">Delete session</button>':''}`;
 }
 function sheetEvent(){
@@ -1297,7 +1302,7 @@ function sheetHistoricalAttendance(){const p=player(ui.sheet.id),years=[...new S
 function trainingAttendance(p,y){
  const h=p.historicalAttendance?.[y]||{},today=new Date().toISOString().slice(0,10);
  const sessions=(team().trainingSessions||[]).filter(x=>season(x.date)===y&&x.date<=today);
- const statuses=sessions.map(x=>x.statuses?.[p.id]||((x.present||[]).includes(p.id)?'present':''));
+ const statuses=sessions.filter(x=>x.confirmed===true||(x.confirmed===undefined&&((x.present||[]).length||Object.keys(x.statuses||{}).length))).map(x=>x.statuses?.[p.id]||((x.present||[]).includes(p.id)?'present':x.confirmed?'absent':''));
  const count=v=>statuses.filter(x=>x===v).length;
  return {present:(+h.present||0)+count('present'),total:(+h.total||0)+statuses.filter(Boolean).length,absent:count('absent'),injured:count('injured'),excused:count('excused')};
 }
@@ -1573,15 +1578,15 @@ const A = {
  const q=ui.sheet,t=team(),date=val('trainingDate'),time=val('trainingTime'),endTime=val('trainingEnd'),venue=val('trainingVenue');
  if(!date||!time||!endTime||endTime<=time){toast('Enter a valid date and training times');return 'keep';}
  t.trainingSessions=t.trainingSessions||[];
- const statuses={};document.querySelectorAll('[data-training-status]').forEach(x=>{if(x.value)statuses[x.dataset.trainingStatus]=x.value;});const present=Object.keys(statuses).filter(id=>statuses[id]==='present');
+ const statuses={};if(q.id)document.querySelectorAll('[data-training-status]').forEach(x=>{if(x.value)statuses[x.dataset.trainingStatus]=x.value;});const present=Object.keys(statuses).filter(id=>statuses[id]==='present');
  const existing=t.trainingSessions.find(x=>x.id===q.id);
- if(existing)Object.assign(existing,{date,time,endTime,venue,present,statuses});
+ if(existing)Object.assign(existing,{date,time,endTime,venue,present,statuses,confirmed:true});
  else {
  const repeat=val('trainingRepeat'),until=val('trainingUntil');
  if(repeat==='weekly'&&(!until||until<date)){toast('Choose a valid repeat-until date');return 'keep';}
  const dates=[date];
  if(repeat==='weekly'){let d=new Date(date+'T12:00:00');for(let i=1;i<52;i++){d.setDate(d.getDate()+7);const next=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');if(next>until)break;dates.push(next);}}
- dates.forEach(day=>{if(!t.trainingSessions.some(x=>x.date===day&&x.time===time))t.trainingSessions.push({id:uid(),date:day,time,endTime,venue,present:day===date?present:[],statuses:day===date?statuses:{}});});
+ dates.forEach(day=>{if(!t.trainingSessions.some(x=>x.date===day&&x.time===time))t.trainingSessions.push({id:uid(),date:day,time,endTime,venue,present:[],statuses:{},confirmed:false});});
  }
  ui.sheet=null;toast('Training saved');
  },
@@ -1617,7 +1622,7 @@ const A = {
   saveManual(d){ const f=fixture(d.id), x=ui.sheet.draft;
     f.score={us:Math.max(0,parseInt(x.us)||0),them:Math.max(0,parseInt(x.them)||0)};
     f.scorers=x.scorers.filter(g=>g.pid).map(g=>({pid:g.pid==='og'?null:g.pid,ownGoal:g.pid==='og',assist:g.pid==='og'?null:g.assist||null}));
-    f.pitch=x.pitch||''; f.motm=x.motm||null; f.star=x.star||null; f.status='played';
+    f.pitch=x.pitch||''; f.motm=x.motm||null; f.star=x.star||null; f.status='played'; if(f.squadConfirmed)f.matchSquad=fitIds(f).slice();
     if(f.match&&!f.match.ended) f.match=null; ui.sheet=null; toast(goalAudit(f).needsReview?'Match saved — goalscorers still need review':'Match report saved'); },
   importSheet(){ ui.sheet={k:'import'}; },
   previewImport(){ ui.sheet.text=val('csvTxt'); ui.sheet.preview=previewCSV(ui.sheet.text); },
