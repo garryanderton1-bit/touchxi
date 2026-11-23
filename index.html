@@ -413,7 +413,8 @@ const matchScoreLabel = f => {
  if(f.extraTime?.played)return pair(ft)+' (AET '+pair(f.score)+')';
  return pair(f.score);
 };
-const fixtureSeason = f => f.season||season(f.date);
+const canonicalSeason = y => {const parts=String(y||'').trim().replace('-', '/').split('/');const start=Number(parts[0]);return parts.length===2&&Number.isInteger(start)&&start>=2000&&start<2100?start+'/'+String((start+1)%100).padStart(2,'0'):String(y||'').trim();};
+const fixtureSeason = f => canonicalSeason(f.season||season(f.date));
 const seasonOptions = date => {const t=team(),u8=Number.isInteger(+t.u8StartYear)?+t.u8StartYear:2022,start=u8-1,y=+(season(date||new Date().toISOString().slice(0,10)).slice(0,4));return Array.from({length:Math.max(6,y-start+2)},(_,i)=>{const n=start+i;return n+'/'+String((n+1)%100).padStart(2,'0');});};
 const playerHistoricalSeasons = p => {
   const current=season(new Date().toISOString().slice(0,10));
@@ -647,7 +648,7 @@ function finishMatch(fx,m){
 /* ============================ Stats ============================ */
 function validMatchScore(f){return Number.isInteger(+f.score?.us)&&Number.isInteger(+f.score?.them)&&+f.score.us>=0&&+f.score.them>=0&&+f.score.us<=99&&+f.score.them<=99;}
 function computeStats(filter){
-  const fxs=fixtures().filter(f=>f.status==='played'&&f.score&&validMatchScore(f)).filter(f=>(!filter.season||fixtureSeason(f)===filter.season)&&(!filter.comp||f.competition===filter.comp));
+  const fxs=fixtures().filter(f=>f.status==='played'&&f.score&&validMatchScore(f)).filter(f=>(!filter.season||fixtureSeason(f)===canonicalSeason(filter.season))&&(!filter.comp||f.competition===filter.comp));
   // Repair the known Archie double-count: his five season records total 249,
   // while a duplicated opening total previously showed 498.
   const archie=db.players.find(p=>p.teamId===team().id&&p.name?.trim().toLowerCase()==='archie');
@@ -658,7 +659,7 @@ function computeStats(filter){
   const ps={}; db.players.filter(p=>p.teamId===team().id).forEach(p=>ps[p.id]={p,apps:0,starts:0,subs:0,min:0,goals:0,assists:0,motm:0,star:0,pos:{}});
   const pitch={};
   // Opening totals are independent of imported match scores.
-  if(!filter.comp) Object.values(ps).forEach(r=>{const b=r.p.openingStats||{};if(!filter.season){for(const k of ['apps','goals','assists','motm'])r[k]+=Math.max(0,+b[k]||0);}else {r.apps+=Math.max(0,+r.p.historicalAppsBySeason?.[filter.season]||0);r.goals+=Math.max(0,+r.p.historicalGoalsBySeason?.[filter.season]||0);r.motm+=Math.max(0,+r.p.historicalMotmBySeason?.[filter.season]||0);}});
+  if(!filter.comp) Object.values(ps).forEach(r=>{const b=r.p.openingStats||{};if(!filter.season){for(const k of ['apps','goals','assists','motm'])r[k]+=Math.max(0,+b[k]||0);}else {r.apps+=Math.max(0,+Object.entries(r.p.historicalAppsBySeason||{}).filter(([y])=>canonicalSeason(y)===canonicalSeason(filter.season)).reduce((n,[,v])=>n+(+v||0),0)||0);r.goals+=Math.max(0,+Object.entries(r.p.historicalGoalsBySeason||{}).filter(([y])=>canonicalSeason(y)===canonicalSeason(filter.season)).reduce((n,[,v])=>n+(+v||0),0)||0);r.motm+=Math.max(0,+Object.entries(r.p.historicalMotmBySeason||{}).filter(([y])=>canonicalSeason(y)===canonicalSeason(filter.season)).reduce((n,[,v])=>n+(+v||0),0)||0);}});
   const T={P:0,W:0,D:0,L:0,GF:0,GA:0};
   fxs.forEach(f=>{ T.P++; T[result(f)]++; T.GF+=f.score.us; T.GA+=f.score.them;
     if(!f.imported&&f.motm&&ps[f.motm]) ps[f.motm].motm++; if(f.star&&ps[f.star]) ps[f.star].star++;
@@ -677,7 +678,7 @@ function computeStats(filter){
   });
   // Team-level historical corrections are independent of individual player opening totals.
   if(filter.season&&!filter.comp){
-    const o=team().seasonStatsOverrides?.[filter.season]||{};
+    const o=team().seasonStatsOverrides?.[canonicalSeason(filter.season)]||team().seasonStatsOverrides?.[filter.season]||{};
     for(const [k,v] of Object.entries(o)) if(['P','W','D','L','GF','GA'].includes(k)&&Number.isFinite(+v)&&+v>=0) T[k]=+v;
   }
   if(!filter.season&&!filter.comp){
@@ -984,7 +985,7 @@ function vStats(){
   const invalid=fixtures().filter(f=>f.status==='played'&&f.score&&!validMatchScore(f));
   const goalReview=fixtures().filter(f=>f.status==='played'&&f.score&&validMatchScore(f)&&goalAudit(f).needsReview&&!goalAudit(f).historical);
   const all=fixtures().filter(f=>f.status==='played'&&f.score&&validMatchScore(f));
-  const seasons=[...new Set([...all.map(f=>fixtureSeason(f)),...db.players.filter(p=>p.teamId===team().id).flatMap(p=>[...Object.keys(p.historicalGoalsBySeason||{}),...Object.keys(p.historicalMotmBySeason||{})])])].sort().reverse();
+  const seasons=[...new Set([...all.map(f=>fixtureSeason(f)),...db.players.filter(p=>p.teamId===team().id).flatMap(p=>[...Object.keys(p.historicalGoalsBySeason||{}),...Object.keys(p.historicalMotmBySeason||{})].map(canonicalSeason))])].filter(Boolean).sort().reverse();
   const comps=[...new Set(all.map(f=>f.competition).filter(Boolean))];
   const st=computeStats(ui.filter||{});
   const T=st.T, gd=T.GF-T.GA;
@@ -1011,7 +1012,8 @@ function vStats(){
    </div>
    ${allTime?(()=>{const o=team().statsOverride||{}, credited=st.players.reduce((n,r)=>n+r.goals,0), own=Number(o.ownGoals)||0, unallocated=Number(o.unallocatedGoals)||0, remainder=T.GF-credited-own-unallocated;return '<div class="card stack"><div class="row between"><div class="eyebrow">All-time goals reconciliation</div><button class="btn sm" data-a="editGoalCategories">Edit categories</button></div><div class="row between"><span>Team goals</span><b>'+T.GF+'</b></div><div class="row between"><span>Player career goals</span><b>'+credited+'</b></div><div class="row between"><span>Opposition own goals</span><b>'+own+'</b></div><div class="row between"><span>Unallocated goals</span><b>'+unallocated+'</b></div><div class="row between"><span>Difference to reconcile</span><b>'+remainder+'</b></div><p class="small muted">Player career totals may cover seasons outside recorded fixtures. Own goals and unallocated goals count towards team goals, not player goals. A difference is shown for review rather than silently changing player records.</p></div>'})():''}
    <div class="card stack"><div class="row between"><div class="eyebrow">Season breakdown</div><span class="small muted">Tap to drill down</span></div>
-   ${seasons.filter(y=>y<=season(new Date().toISOString().slice(0,10))).sort().reverse().map(y=>{const z=computeStats({season:y,comp:ui.filter?.comp||''}),t=z.T;return '<button class="li" data-a="selectStatsSeason" data-season="'+esc(y)+'" style="text-align:left"><span class="main"><b>'+esc(seasonLabel(y))+'</b><span class="small muted" style="display:block">'+t.P+' played · '+t.W+'W '+t.D+'D '+t.L+'L</span></span><span class="num">'+t.GF+'–'+t.GA+'</span><span>›</span></button>'}).join('')}
+   ${seasons.filter(y=>y<=season(new Date().toISOString().slice(0,10))).sort().reverse().filter(y=>{const z=computeStats({season:y,comp:ui.filter?.comp||''}).T;return z.P||z.GF||z.GA||team().seasonStatsOverrides?.[y];}).slice(0,ui.showAllStatSeasons?undefined:3).map(y=>{const z=computeStats({season:y,comp:ui.filter?.comp||''}),t=z.T;return '<button class="li" data-a="selectStatsSeason" data-season="'+esc(y)+'" style="text-align:left"><span class="main"><b>'+esc(seasonLabel(y))+'</b><span class="small muted" style="display:block">'+t.P+' played · '+t.W+'W '+t.D+'D '+t.L+'L</span></span><span class="num">'+t.GF+'–'+t.GA+'</span><span>›</span></button>'}).join('')}
+   ${seasons.length>3?'<button class="btn sm" data-a="toggleStatSeasons">'+(ui.showAllStatSeasons?'Show fewer seasons':'View season history')+'</button>':''}
    ${ui.filter?.season?'<button class="btn sm" data-a="selectStatsSeason" data-season="">Back to all seasons</button>':''}
    <p class="small muted">Tap a season to review and edit its historical record. All-time totals remain independently editable. Differences between season totals and all-time totals should be reconciled rather than automatically assigned to a season.</p></div>
    <div class="card stack stats-players"><div class="row between"><div class="eyebrow">Player leaderboard</div><span class="small muted">Select a statistic</span></div>
@@ -1404,6 +1406,7 @@ const A = {
   openPlayerProfile(d){ui.profilePlayerId=d.id;ui.view='playerProfile';window.scrollTo(0,0);},
   toggleFormerPlayers(){ui.showFormerPlayers=!ui.showFormerPlayers;},
   toggleStatsOpponents(){ui.showStatsOpponents=!ui.showStatsOpponents;},
+  toggleStatSeasons(){ui.showAllStatSeasons=!ui.showAllStatSeasons;},
   selectStatsSeason(d){ui.filter={...(ui.filter||{}),season:d.season||''};window.scrollTo(0,0);},
 
   runGoalAudit(){ui.historyReviewOnly=true;toast('Full fixture audit complete — review matches listed below');},
