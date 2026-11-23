@@ -738,7 +738,7 @@ function vPlayerProfile(){
  const years=[...new Set([...recorded.map(f=>fixtureSeason(f)),...Object.keys(p.historicalGoalsBySeason||{}),...Object.keys(p.historicalMotmBySeason||{}),...(p.honours||[]).map(a=>a.season)])].filter(Boolean).sort().reverse();
  const summary=years.map(y=>{
   const games=recorded.filter(f=>(fixtureSeason(f))===y);
-  const goals=(+p.historicalGoalsBySeason?.[y]||0)+games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length,0);
+  const goals=(+p.historicalGoalsBySeason?.[y]||0)+games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.pid===p.id).length+(f.penalties?.taken?(f.penalties.kicks||[]).filter(k=>k.pid===p.id&&k.scored).length:0),0);
   const assists=games.reduce((n,f)=>n+(f.scorers||[]).filter(g=>g.assist===p.id).length,0);
   const motm=(+p.historicalMotmBySeason?.[y]||0)+games.filter(f=>f.motm===p.id).length;
   const apps=games.filter(f=>f.match?.stints?.some(x=>x.pid===p.id)).length;
