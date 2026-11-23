@@ -663,6 +663,11 @@ function computeStats(filter){
       Object.entries(seen).forEach(([id,k])=>{ ps[id].apps++; if(k==='start') ps[id].starts++; else ps[id].subs++; });
     }
   });
+  // Team-level historical corrections are independent of individual player opening totals.
+  if(!filter.season&&!filter.comp){
+    const o=team().statsOverride||{};
+    for(const [k,v] of Object.entries(o)) if(['P','W','D','L','GF','GA'].includes(k)&&Number.isFinite(+v)&&+v>=0) T[k]=+v;
+  }
   const opp={}; fxs.forEach(f=>{ const o=opp[f.opponent]=opp[f.opponent]||{P:0,W:0,D:0,L:0,GF:0,GA:0}; o.P++; o[result(f)]++; o.GF+=f.score.us; o.GA+=f.score.them; });
   return {T,players:Object.values(ps),opp,fxs,pitch};
 }
@@ -944,6 +949,9 @@ function vStats(){
   const comps=[...new Set(all.map(f=>f.competition).filter(Boolean))];
   const st=computeStats(ui.filter||{});
   const T=st.T, gd=T.GF-T.GA;
+  const allTime=!ui.filter?.season&&!ui.filter?.comp;
+
+
   const rows=st.players.sort((a,b)=>b.goals-a.goals||b.min-a.min);
   const opp=Object.entries(st.opp).sort((a,b)=>b[1].P-a[1].P);
   const recent=[...st.fxs].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).reverse();
@@ -955,7 +963,7 @@ function vStats(){
    <div class="card stack"><div class="eyebrow">Team attendance · completed tracked fixtures</div><div class="scroll-x"><table class="mtab"><thead><tr><th>Player</th><th>Played</th><th>Missed</th><th>Injured</th><th>Available unused</th><th>Attendance</th></tr></thead><tbody>${squad().map(p=>{const rr=attendanceRows(p.id).filter(x=>!ui.filter?.season||fixtureSeason(x.f)===ui.filter.season);const n=k=>rr.filter(x=>x.status===k).length;const played=n('Played'),missed=n('Injured')+n('Unavailable')+n('Not selected'),eligible=played+missed;return '<tr><td>'+esc(p.name)+'</td><td>'+played+'</td><td>'+missed+'</td><td>'+n('Injured')+'</td><td>'+n('Available but unused')+'</td><td>'+(eligible?Math.round(played/eligible*100)+'%':'—')+'</td></tr>';}).join('')}</tbody></table></div><p class="small muted">Future fixtures and imported historical results without player attendance are excluded. Available but unused is not counted as a missed game.</p></div>
    <div class="grid2"><select class="input" data-a="filter" data-k="season"><option value="">All seasons</option>${seasons.map(s=>`<option value="${esc(s)}" ${ui.filter?.season===s?'selected':''}>${esc(seasonLabel(s))}</option>`).join('')}</select>
    <select class="input" data-a="filter" data-k="comp"><option value="">All competitions</option>${comps.map(s=>`<option ${ui.filter?.comp===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
-   <div class="card stack stats-overview"><div class="eyebrow">Team record</div>
+   <div class="card stack stats-overview"><div class="row between"><div class="eyebrow">Team record</div>${allTime?'<button class="btn sm primary" data-a="editTeamStats">Edit stats</button>':''}</div>
     <div class="stats-summary num">
       <div class="stats-summary-main"><span class="stats-summary-value">${T.P}</span><span class="stats-summary-label">Matches played</span></div>
       <div class="stats-wdl"><div><strong>${T.W}</strong><span>Won</span></div><div><strong>${T.D}</strong><span>Drawn</span></div><div><strong>${T.L}</strong><span>Lost</span></div></div>
@@ -963,6 +971,7 @@ function vStats(){
     <div class="stats-score-grid num"><div><span>Goals scored</span><strong>${T.GF}</strong></div><div><span>Goals conceded</span><strong>${T.GA}</strong></div><div><span>Goal difference</span><strong>${gd>0?'+':''}${gd}</strong></div></div>
     ${recent.length?`<div class="stats-trend"><div class="small muted" style="margin-bottom:6px">Recent form · goal difference</div>${trendSvg(recent)}</div>`:''}
    </div>
+   ${allTime?(()=>{const o=team().statsOverride||{}, credited=st.players.reduce((n,r)=>n+r.goals,0), own=Number(o.ownGoals)||0, unallocated=Number(o.unallocatedGoals)||0, remainder=T.GF-credited-own-unallocated;return '<div class="card stack"><div class="row between"><div class="eyebrow">All-time goals reconciliation</div><button class="btn sm" data-a="editGoalCategories">Edit categories</button></div><div class="row between"><span>Team goals</span><b>'+T.GF+'</b></div><div class="row between"><span>Player career goals</span><b>'+credited+'</b></div><div class="row between"><span>Opposition own goals</span><b>'+own+'</b></div><div class="row between"><span>Unallocated goals</span><b>'+unallocated+'</b></div><div class="row between"><span>Difference to reconcile</span><b>'+remainder+'</b></div><p class="small muted">Player career totals may cover seasons outside recorded fixtures. Own goals and unallocated goals count towards team goals, not player goals. A difference is shown for review rather than silently changing player records.</p></div>'})():''}
    <div class="card stack stats-players"><div class="row between"><div class="eyebrow">Player leaderboard</div><span class="small muted">Select a statistic</span></div>
     <div class="stats-leader-tabs" role="group" aria-label="Player statistic"><button type="button" class="stats-leader-tab active" data-stat="goals">Goals</button><button type="button" class="stats-leader-tab" data-stat="apps">Apps</button><button type="button" class="stats-leader-tab" data-stat="assists">Assists</button><button type="button" class="stats-leader-tab" data-stat="motm">MOTM</button><button type="button" class="stats-leader-tab" data-stat="min">Minutes</button></div>
     <div class="stats-leader-list" data-leaderboard>
@@ -1320,6 +1329,29 @@ const A = {
   runGoalAudit(){ui.historyReviewOnly=true;toast('Full fixture audit complete — review matches listed below');},
   toggleHistoryReview(){ui.historyReviewOnly=!ui.historyReviewOnly;},
   toggleGoalReview(){ui.showGoalReview=!ui.showGoalReview;},
+  editTeamStats(){
+    const t=team(), o=t.statsOverride||{}, current=computeStats({});
+    const fields=[['P','Matches played'],['W','Wins'],['D','Draws'],['L','Losses'],['GF','Goals scored'],['GA','Goals conceded']];
+    const next={...o};
+    for(const [key,label] of fields){
+      const raw=prompt(label+' (all-time)',String(o[key]??current.T[key]));
+      if(raw===null)return 'keep';
+      if(!/^\\d+$/.test(raw.trim())){toast('Enter a whole number for '+label);return 'keep';}
+      next[key]=Number(raw);
+    }
+    if(next.W+next.D+next.L!==next.P){toast('Wins, draws and losses must equal matches played');return 'keep';}
+    t.statsOverride=next;save();toast('All-time team stats saved');
+  },
+  editGoalCategories(){
+    const t=team(),o={...(t.statsOverride||{})};
+    for(const [key,label] of [['ownGoals','Opposition own goals'],['unallocatedGoals','Unallocated goals']]){
+      const raw=prompt(label+' (all-time)',String(o[key]||0));
+      if(raw===null)return 'keep';
+      if(!/^\\d+$/.test(raw.trim())){toast('Enter a non-negative whole number');return 'keep';}
+      o[key]=Number(raw);
+    }
+    t.statsOverride=o;save();toast('Goal categories saved');
+  },
   toggleTrainingStats(){ui.showTrainingStats=!ui.showTrainingStats;},
   editPlayer(d){ ui.sheet={k:'player',id:d.id||null}; ui.confirm=null; },
   closeSheet(){ ui.sheet=null; ui.confirm=null; },
