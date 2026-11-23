@@ -979,6 +979,10 @@ function vStats(){
     ${recent.length?'<div class="stats-trend"><div class="eyebrow" style="margin-bottom:8px">Last five results</div>'+recent.slice(-5).reverse().map(f=>{const r=result(f),tag=r==='W'?'Won':r==='D'?'Drawn':'Lost';return '<button class="li" data-a="openFx" data-id="'+esc(f.id)+'"><span style="font-weight:750;color:'+(r==='W'?'var(--good)':r==='L'?'var(--bad)':'var(--muted)')+'">'+tag+'</span><span class="main">'+esc(f.opponent)+'</span><b class="num">'+f.score.us+'–'+f.score.them+'</b><span>›</span></button>'}).join('')+'</div>':''}
    </div>
    ${allTime?(()=>{const o=team().statsOverride||{}, credited=st.players.reduce((n,r)=>n+r.goals,0), own=Number(o.ownGoals)||0, unallocated=Number(o.unallocatedGoals)||0, remainder=T.GF-credited-own-unallocated;return '<div class="card stack"><div class="row between"><div class="eyebrow">All-time goals reconciliation</div><button class="btn sm" data-a="editGoalCategories">Edit categories</button></div><div class="row between"><span>Team goals</span><b>'+T.GF+'</b></div><div class="row between"><span>Player career goals</span><b>'+credited+'</b></div><div class="row between"><span>Opposition own goals</span><b>'+own+'</b></div><div class="row between"><span>Unallocated goals</span><b>'+unallocated+'</b></div><div class="row between"><span>Difference to reconcile</span><b>'+remainder+'</b></div><p class="small muted">Player career totals may cover seasons outside recorded fixtures. Own goals and unallocated goals count towards team goals, not player goals. A difference is shown for review rather than silently changing player records.</p></div>'})():''}
+   <div class="card stack"><div class="row between"><div class="eyebrow">Season breakdown</div><span class="small muted">Tap to drill down</span></div>
+   ${seasons.filter(y=>y<=season(new Date().toISOString().slice(0,10))).sort().reverse().map(y=>{const z=computeStats({season:y,comp:ui.filter?.comp||''}),t=z.T;return '<button class="li" data-a="selectStatsSeason" data-season="'+esc(y)+'" style="text-align:left"><span class="main"><b>'+esc(seasonLabel(y))+'</b><span class="small muted" style="display:block">'+t.P+' played · '+t.W+'W '+t.D+'D '+t.L+'L</span></span><span class="num">'+t.GF+'–'+t.GA+'</span><span>›</span></button>'}).join('')}
+   ${ui.filter?.season?'<button class="btn sm" data-a="selectStatsSeason" data-season="">Back to all seasons</button>':''}
+   <p class="small muted">Season figures use recorded fixtures and season-specific player records. All-time corrections are kept separate; missing historical fixtures are not invented.</p></div>
    <div class="card stack stats-players"><div class="row between"><div class="eyebrow">Player leaderboard</div><span class="small muted">Select a statistic</span></div>
     <div class="stats-leader-tabs" role="group" aria-label="Player statistic"><button type="button" class="stats-leader-tab active" data-stat="goals">Goals</button><button type="button" class="stats-leader-tab" data-stat="apps">Apps</button><button type="button" class="stats-leader-tab" data-stat="assists">Assists</button><button type="button" class="stats-leader-tab" data-stat="motm">MOTM</button><button type="button" class="stats-leader-tab" data-stat="min">Minutes</button></div>
     <div class="stats-leader-list" data-leaderboard>
@@ -1333,6 +1337,8 @@ const A = {
   openPlayerProfile(d){ui.profilePlayerId=d.id;ui.view='playerProfile';window.scrollTo(0,0);},
   toggleFormerPlayers(){ui.showFormerPlayers=!ui.showFormerPlayers;},
   toggleStatsOpponents(){ui.showStatsOpponents=!ui.showStatsOpponents;},
+  selectStatsSeason(d){ui.filter={...(ui.filter||{}),season:d.season||''};window.scrollTo(0,0);},
+
   runGoalAudit(){ui.historyReviewOnly=true;toast('Full fixture audit complete — review matches listed below');},
   toggleHistoryReview(){ui.historyReviewOnly=!ui.historyReviewOnly;},
   toggleGoalReview(){ui.showGoalReview=!ui.showGoalReview;},
