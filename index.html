@@ -750,10 +750,7 @@ function vHome(){
  ${active.length?'<div class="list">'+active.map(x=>'<div class="li" style="background:var(--surface,white);border-radius:12px;padding:10px 4px"><button class="btn sm" data-a="completeManagerTask" data-id="'+x.id+'" aria-label="Complete task">○</button><button class="main" style="text-align:left;background:none;border:0;color:inherit" data-a="editManagerTask" data-id="'+x.id+'"><b>'+esc(x.title)+'</b><div class="small muted">'+esc(x.priority||'Normal')+(x.due?' · Due '+fmtDate(x.due):'')+'</div></button></div>').join('')+'</div>':'<div style="text-align:center;padding:16px 8px"><div style="font-size:28px;margin-bottom:6px;color:var(--muted)">✓</div><b>All caught up</b><p class="small muted" style="margin:6px 0 0">Add something to organise or remember.</p></div>'}
  ${tasks.some(x=>x.done)?'<button class="btn sm" data-a="toggleCompletedTasks">'+(ui.showCompletedTasks?'Hide completed':'Completed ('+tasks.filter(x=>x.done).length+')')+'</button>':''}
  ${ui.showCompletedTasks?'<div class="list">'+tasks.filter(x=>x.done).map(x=>'<div class="li"><button class="btn sm" data-a="completeManagerTask" data-id="'+x.id+'">✓</button><span class="main small muted">'+esc(x.title)+'</span><button class="btn sm" data-a="editManagerTask" data-id="'+x.id+'">Edit</button></div>').join('')+'</div>':''}</div>
- <div class="card stack"><div class="row between"><div class="eyebrow">Trophy cabinet · ${honours.length}</div><button class="btn sm" data-a="toggleTeamHonours">${ui.showTeamHonours?'Hide':'View all'}</button></div>
- ${honours.length?'<div><b>🏆 '+esc(honours[honours.length-1].name)+'</b><div class="small muted">'+esc(honours[honours.length-1].season||'')+'</div></div>':'<p class="small muted">No team honours recorded yet.</p>'}
- ${ui.showTeamHonours?'<div class="list">'+honours.map(h=>'<button class="li" data-a="editTeamHonour" data-id="'+h.id+'"><span class="main"><b>'+esc(h.name)+'</b><div class="small muted">'+esc(h.season||'')+' · '+(h.playerIds||[]).length+' players</div></span><span>›</span></button>').join('')+'</div>':''}
- <button class="btn sm primary" data-a="newTeamHonour">+ Add honour</button></div>
+
  </div>`;
 }
 /* ---------- Squad ---------- */
@@ -863,15 +860,15 @@ function vFixtures(){
  const visible=tab==='history'?historyFiltered:upcoming;
  return `<div class="stack">
  <div class="row between"><h2>Schedule</h2><div class="row"><button class="btn primary sm" data-a="addFx">+ Match</button><button class="btn sm" data-a="newTraining">+ Training</button><button class="btn sm" data-a="newEvent">+ Event</button></div></div>
- <div class="seg" style="display:grid;grid-template-columns:repeat(3,1fr)" role="group" aria-label="Schedule view">
+ <div class="seg" style="display:grid;grid-template-columns:repeat(2,1fr)" role="group" aria-label="Schedule view">
  <button data-a="scheduleTab" data-v="upcoming" class="${tab==='upcoming'?'on':''}">Upcoming</button>
- <button data-a="scheduleTab" data-v="attendance" class="${tab==='attendance'?'on':''}">Attendance</button>
  <button data-a="scheduleTab" data-v="history" class="${tab==='history'?'on':''}">History</button></div>
- ${tab==='attendance'?vScheduleAttendance():`
+ 
  ${tab==='history'?'<div class="grid2"><select class="input" data-a="scheduleFilter" data-k="season"><option value="">All seasons</option>'+years.map(y=>'<option value="'+esc(y)+'" '+(ui.scheduleSeason===y?'selected':'')+'>'+esc(seasonLabel(y))+'</option>').join('')+'</select><select class="input" data-a="scheduleFilter" data-k="type"><option value="">All activities</option><option value="match" '+(ui.scheduleType==='match'?'selected':'')+'>Matches</option><option value="training" '+(ui.scheduleType==='training'?'selected':'')+'>Training</option><option value="event" '+(ui.scheduleType==='event'?'selected':'')+'>Team events</option></select></div>':''}
  <div class="card stack"><div class="eyebrow">${tab==='history'?'Completed activities':'Next activities'} · ${visible.length}</div><div class="list">${visible.slice(0,expanded?undefined:5).map(eventRow).join('')||'<p class="small muted">Nothing to show.</p>'}</div>
- ${visible.length>5?'<button class="btn" data-a="scheduleExpand">'+(expanded?'Show less':'View all ('+visible.length+')')+'</button>':''}</div>`}
+ ${visible.length>5?'<button class="btn" data-a="scheduleExpand">'+(expanded?'Show less':'View all ('+visible.length+')')+'</button>':''}</div>
  <div class="grid2"><button class="btn" data-a="nav" data-v="opponents">Manage opponents</button><button class="btn" data-a="nav" data-v="history">Match audit</button></div>
+ <div class="card stack"><div class="row between"><div class="eyebrow">Attendance</div><button class="btn sm" data-a="toggleScheduleAttendance">${ui.showScheduleAttendance?'Hide':'Show'}</button></div>${ui.showScheduleAttendance?vScheduleAttendance():'<p class="small muted">Training and match attendance by season.</p>'}</div>
  </div>`;
 }
 function vScheduleAttendance(){
@@ -1003,6 +1000,7 @@ const mins_ = s=>Math.round(s/60);
 
 /* ---------- Stats ---------- */
 function vStats(){
+  const honours=team().teamHonours||[];
   const invalid=fixtures().filter(f=>f.status==='played'&&f.score&&!validMatchScore(f));
   const goalReview=fixtures().filter(f=>f.status==='played'&&f.score&&validMatchScore(f)&&goalAudit(f).needsReview&&!goalAudit(f).historical);
   const all=fixtures().filter(f=>f.status==='played'&&f.score&&validMatchScore(f));
@@ -1018,9 +1016,12 @@ function vStats(){
   const recent=[...st.fxs].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8).reverse();
   return `<div class="stack">
    <h2>Stats</h2>
+ <div class="card stack"><div class="row between"><div class="eyebrow">Trophy cabinet · ${honours.length}</div><button class="btn sm" data-a="toggleTeamHonours">${ui.showTeamHonours?'Hide':'View all'}</button></div>
+ ${honours.length?'<div><b>🏆 '+esc(honours[honours.length-1].name)+'</b><div class="small muted">'+esc(honours[honours.length-1].season||'')+'</div></div>':'<p class="small muted">No team honours recorded yet.</p>'}
+ ${ui.showTeamHonours?'<div class="list">'+honours.map(h=>'<button class="li" data-a="editTeamHonour" data-id="'+h.id+'"><span class="main"><b>'+esc(h.name)+'</b><div class="small muted">'+esc(h.season||'')+' · '+(h.playerIds||[]).length+' players</div></span><span>›</span></button>').join('')+'</div>':''}
+ <button class="btn sm primary" data-a="newTeamHonour">+ Add honour</button></div>
    ${goalReview.length?`<div class="card stack"><div class="row between"><div class="eyebrow">Goalscorers needing review · ${goalReview.length}</div><button class="btn sm" data-a="toggleGoalReview">${ui.showGoalReview?"Hide":"Show"}</button></div><p class="small muted">The score does not match the number of recorded goals. Imported fixtures may not have historical scorers yet. Own goals count towards the match total, but not player goals.</p>${ui.showGoalReview?goalReview.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><span class="main">${esc(f.opponent)} · ${esc(f.date)}</span><b>${goalAudit(f).recorded} of ${goalAudit(f).expected}</b><span>›</span></button>`).join(""):""}</div>`:""}
    ${invalid.length?`<div class="card stack"><div class="eyebrow">Results needing correction · ${invalid.length}</div><p class="small muted">These scores look incorrect and are excluded from the statistics until corrected. The fixtures are preserved.</p>${invalid.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><span class="main">${esc(f.opponent)} · ${esc(f.date)}</span><b>${esc(f.score.us)}–${esc(f.score.them)}</b><span>›</span></button>`).join("")}</div>`:""}
-   <div class="card"><div class="row between"><div><div class="eyebrow">Attendance</div><p class="small muted">Training and match attendance reports are in Schedule.</p></div><button class="btn sm" data-a="openAttendance">View</button></div></div>
    <div class="grid2"><select class="input" data-a="filter" data-k="season"><option value="">All seasons</option>${seasons.map(s=>`<option value="${esc(s)}" ${ui.filter?.season===s?'selected':''}>${esc(seasonLabel(s))}</option>`).join('')}</select>
    <select class="input" data-a="filter" data-k="comp"><option value="">All competitions</option>${comps.map(s=>`<option ${ui.filter?.comp===s?'selected':''}>${esc(s)}</option>`).join('')}</select></div>
    <div class="card stack stats-overview"><div class="row between"><div class="eyebrow">Team record</div>${allTime?'<button class="btn sm primary" data-a="editTeamStats">Edit stats</button>':(!ui.filter?.comp?'<button class="btn sm primary" data-a="editSeasonStats" data-season="'+esc(ui.filter.season)+'">Edit season</button>':'')}</div>
@@ -1429,6 +1430,7 @@ const A = {
   editFx(d){ ui.sheet={k:'fixture',id:d.id}; ui.confirm=null; },
   openPlayerProfile(d){ui.profilePlayerId=d.id;ui.view='playerProfile';window.scrollTo(0,0);},
   toggleFormResult(d){const i=Number(d.i);ui.homeFormIndex=ui.homeFormIndex===i?-1:i;},
+  toggleScheduleAttendance(){ui.showScheduleAttendance=!ui.showScheduleAttendance;},
   toggleSquadStats(){ui.showSquadStats=!ui.showSquadStats;},
   toggleCompletedTasks(){ui.showCompletedTasks=!ui.showCompletedTasks;},
   newManagerTask(){ui.sheet={k:'managerTask'};},
