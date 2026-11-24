@@ -31,6 +31,13 @@ html{-webkit-text-size-adjust:100%}
 .formation-edit-token.keeper{background:#ff2e93;color:#fff}.formation-edit-token.selected{outline:4px solid #fff;outline-offset:3px;box-shadow:0 0 0 6px #ff2e93,0 4px 12px #0008}
 .formation-role-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 </style>
+<style id="design-d04">
+.sheet.sheet-v2{max-height: min(92dvh,calc(100dvh - env(safe-area-inset-top,0px) - 12px));padding-top:0;gap:12px;overscroll-behavior:contain}
+.sheet-header{position:sticky;top:0;z-index:10;background:var(--surface);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0 12px;border-bottom:1px solid rgba(120,130,150,.22)}
+.sheet-header h2{margin:0;flex:1;min-width:0;font-size:clamp(19px,5vw,25px);line-height:1.15}
+.sheet-header .sheet-close{flex-shrink:0;min-height:44px}
+.sheet-v2>*{flex-shrink:0}
+</style>
 </head>
 <body>
 <style>
@@ -1279,7 +1286,16 @@ function renderSheet(){
   if(k==='historicalAttendance') h=sheetHistoricalAttendance();
   if(k==='score') h=sheetScore();
   if(k==='team') h=`<h2>Add team</h2><label class="f">Team name<input class="input" id="ntName" placeholder="e.g. Askern Miners U10s"></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="createTeam">Create</button></div>`;
-  s.innerHTML=`<div class="sheet" role="dialog" aria-modal="true">${h}</div>`;
+  const previous=s.querySelector('.sheet'),scroll=previous?.dataset.kind===k?previous.scrollTop:0;
+  s.innerHTML=`<div class="sheet sheet-v2" data-kind="${k}" role="dialog" aria-modal="true">${h}</div>`;
+  const panel=s.firstElementChild,heading=panel.querySelector('h2');
+  const header=document.createElement('div');header.className='sheet-header';
+  const title=heading||document.createElement('h2');if(!heading)title.textContent='Details';
+  const existing=heading?.parentElement;
+  if(existing&&existing!==panel&&existing.querySelector('[data-a="closeSheet"]'))existing.remove();
+  title.id='sheet-title';title.removeAttribute('style');header.appendChild(title);
+  const close=document.createElement('button');close.className='btn sm sheet-close';close.dataset.a='closeSheet';close.textContent=['tactical','alerts','backup'].includes(k)?'Done':'Close';close.setAttribute('aria-label',close.textContent==='Done'?'Done, close panel':'Close without saving');header.appendChild(close);
+  panel.prepend(header);panel.setAttribute('aria-labelledby','sheet-title');panel.scrollTop=scroll;
 }
 function sheetGoal(){
   const fx=fixture(ui.fxId), m=fx.match, st=ui.sheet;
