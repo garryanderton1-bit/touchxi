@@ -376,6 +376,7 @@ function vOpponentDetail(){
  <div><b>Contact number</b><div class="small">${o.phone?`<a href="tel:${esc(o.phone.replace(/[^+0-9]/g,''))}">${esc(o.phone)}</a>`:'<span class="muted">Not recorded</span>'}</div></div>
  <div><b>Club notes</b><div class="small muted" style="white-space:pre-wrap">${esc(o.notes||'Not recorded')}</div></div></div>
  <div class="card stack"><div class="eyebrow">Head-to-head record</div><div class="kpis num"><div><div class="stat-n">${matches.length}</div><div class="small muted">Played</div></div><div><div class="stat-n">${W}-${D}-${L}</div><div class="small muted">W-D-L</div></div><div><div class="stat-n">${GF}:${GA}</div><div class="small muted">Goals</div></div><div><div class="stat-n">${GF-GA>0?'+':''}${GF-GA}</div><div class="small muted">Goal diff</div></div></div></div>
+ <div class="card stack"><details><summary>Opposition intelligence</summary>${tacticalHistoryHtml(null,name)}</details></div>
  <div class="card"><div class="eyebrow">Historical results & match notes</div><div class="list">${matches.map(f=>`<button class="li" data-a="openFx" data-id="${f.id}"><div class="main"><b>${fmtDate(f.date)}</b><div class="small muted">${esc(f.competition||'')} · ${f.homeAway==='H'?'Home':f.homeAway==='A'?'Away':'Neutral'}</div>${f.coachingNotes&&(f.coachingNotes.good||f.coachingNotes.improve||f.coachingNotes.training)?'<div class="small muted">Coaching notes available</div>':''}</div><div><b class="num">${esc(matchScoreLabel(f))}</b>${goalAudit(f).needsReview?`<div class="small" style="color:var(--red,#b42335)">Review: ${goalAudit(f).recorded}/${goalAudit(f).expected} goals</div>`:""}</div><span class="muted">›</span></button>`).join('')||'<p class="small muted">No completed matches recorded against this opponent.</p>'}</div></div></div>`;
 }
 const goalAudit = f => {const expected=Number(f.score?.us)||0,recorded=(f.scorers||[]).filter(g=>g&&(g.pid||g.ownGoal)).length,missing=expected-recorded,needsReview=expected!==recorded,historical=!!f.imported&&!(f.scorers||[]).length;return {expected,recorded,missing,needsReview,historical,status:!needsReview?'reconciled':historical?'historical':'discrepancy'};};
@@ -929,6 +930,7 @@ function vFixture(){
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
    <div class="muted small" style="margin-top:4px">${esc(fx.competition||'')} · ${fx.format}v${fx.format} · ${fx.periods}×${fx.periodMins} min${fx.windows>1?` · subs every ${blockMins(fx)} min`:''}</div></div>
 
+   <button class="btn" data-a="openTactical" data-id="${fx.id}">Opposition insight</button>
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fitIds(fx).length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
      <div class="row between" style="flex-wrap:wrap"><span class="small muted">${confirmed?`Matchday squad confirmed · ${fitIds(fx).length} selected`:`Select who is available, then confirm the matchday squad`}</span><button class="btn ${confirmed?'':'primary'} sm" data-a="confirmSquad">${confirmed?'Edit availability':'Confirm matchday squad'}</button></div>
      <div class="list">${visiblePs.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||(!on?'unavailable':''));
@@ -979,6 +981,7 @@ function vPlayed(fx){
      <div style="margin-top:8px"><span class="pill ${r}">${{W:'Win',D:'Draw',L:'Defeat'}[r]}</span> ${fx.imported?'<span class="pill ex">Imported</span>':''}</div></div>
     ${fx.penalties?.taken?`<div class="card stack"><div class="eyebrow">Penalty shootout</div><b>${fx.penalties.us}–${fx.penalties.them}</b>${(fx.penalties.kicks||[]).map(k=>'<div>'+esc(player(k.pid)?.name||'Unknown')+' — '+(k.scored?'Scored':'Missed')+'</div>').join('')}</div>`:''}
     <div class="card stack"><div class="row between"><div class="eyebrow">Disciplinary cards</div><button class="btn sm primary" data-a="addCard" data-id="${fx.id}">+ Card</button></div>${(fx.cards||[]).map(c=>'<button class="li" data-a="editCard" data-id="'+fx.id+'" data-card="'+c.id+'"><span class="main">'+(c.colour==='red'?'Red':'Yellow')+' · '+(c.side==='them'?'Opposition: '+esc(c.opponentPlayer||'Unspecified'):esc(player(c.pid)?.name||'Our player'))+(c.minute!==null&&c.minute!==undefined?' · '+c.minute+' min':'')+'</span><span>Edit ›</span></button>').join('')||'<p class="small muted">No cards recorded.</p>'}</div>
+    <button class="btn" data-a="openTactical" data-id="${fx.id}">Opposition notes & tactical reflection</button>
     <div class="card"><div class="row between"><div class="eyebrow">Coaching notes</div><button class="btn sm" data-a="editNotes" data-id="${fx.id}">Edit notes</button></div>
     ${[['What went well',fx.coachingNotes?.good],['What needs improving',fx.coachingNotes?.improve],['Next training focus',fx.coachingNotes?.training]].map(([k,v])=>v?`<p class="small"><b>${k}</b><br>${esc(v).replace(/\\n/g,'<br>')}</p>`:'').join('')||'<p class="small muted">No coaching notes recorded yet.</p>'}</div>
     ${goalAudit(fx).needsReview?`<div class="card stack"><b>Goalscorers need review</b><p class="small muted">Match score: ${goalAudit(fx).expected} goals. Recorded scorers: ${goalAudit(fx).recorded}. Add missing scorers or opposition own goals in Match report.</p><button class="btn primary" data-a="manualResult" data-id="${fx.id}">Review goalscorers</button></div>`:''}
@@ -1127,7 +1130,7 @@ function renderMatch(){
   const scroll=el.scrollTop;
   el.innerHTML = `
   <div class="score"><div class="wrap">
-    <div class="row between"><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="closeMatch">‹ Back</button><span class="row" style="gap:8px"><span class="small" style="opacity:.8">${fx.format}v${fx.format} · ${F.name}</span><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="alertsSheet">Alerts</button></span></div>
+    <div class="row between"><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="closeMatch">‹ Back</button><span class="row" style="gap:8px"><span class="small" style="opacity:.8">${fx.format}v${fx.format} · ${F.name}</span><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="alertsSheet">Alerts</button><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="openTactical">Opposition</button></span></div>
     <div class="sline"><div class="t r">${esc(t.name)}</div><div class="g">${m.us}–${m.them}</div><div class="t">${esc(fx.opponent)}</div></div>
     <div class="clock"><span class="per">${m.ended?'FT':periodShort(fx,m.period)}</span><span class="tm ${per>lim?'late':''}" id="clk">${mmss(per)}</span><span class="small" style="opacity:.75">/ ${fx.periodMins}:00</span></div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="ask" data-k="restart">↻ Restart match</button></div>
@@ -1211,6 +1214,28 @@ function startTick(){
 async function keepAwake(){ try{ if('wakeLock' in navigator && !wake) { wake=await navigator.wakeLock.request('screen'); wake.addEventListener('release',()=>wake=null); } }catch(e){} }
 
 /* ---------- Sheets ---------- */
+
+const tacticalTags={
+'High press':'Use the spare player, create short passing triangles and look behind the press.',
+'Low block':'Use width, switch play and encourage patient movement.',
+'Fast striker':'Keep defensive cover and avoid leaving a defender isolated.',
+'Strong midfield':'Stay compact and create passing options around their midfield.',
+'Overloaded out wide':'Ask the nearest midfielder to recover and support the defender.',
+'Striker isolated':'Ask a midfielder to support the striker when in possession.',
+'Caught on counter':'Keep a spare defender or holding midfielder behind the ball.',
+'Space behind defence':'Encourage well-timed runs into space rather than hopeful long balls.',
+'Weak defensive recovery':'Move the ball forward quickly when space opens.',
+'Long balls':'Keep cover behind the first defender and compete for second balls.'
+};
+function tacticalRows(raw,fmt){const a=String(raw||'').trim().split('-').map(Number);return /^\d+(?:-\d+){1,4}$/.test(String(raw||'').trim())&&a.every(n=>n>0&&n<=6)&&a.reduce((x,y)=>x+y,0)===fmt-1?a:null;}
+function tacticalHistory(fx,name){return fixtures().filter(f=>f.id!==fx?.id&&f.opponent.toLowerCase()===name.toLowerCase()&&(!fx||f.date<=fx.date)&&(f.tactical||[]).length).sort((a,b)=>b.date.localeCompare(a.date));}
+function tacticalEntries(f){return (f.tactical||[]).slice().reverse().map(e=>`<div class="card stack"><b>${esc(e.ours||'Unknown')} vs ${esc(e.theirs||'Unknown')}</b><div class="small muted">${esc(e.when||'Match reflection')}</div>${e.tags?.length?'<div class="small">'+e.tags.map(esc).join(' · ')+'</div>':''}${e.note?'<div style="white-space:pre-wrap">'+esc(e.note)+'</div>':''}${e.reflection?'<div class="small"><b>Reflection:</b> '+esc(e.reflection)+'</div>':''}${ui.sheet?.id===f.id?'<div class="row"><button class="btn sm" data-a="tacticalEdit" data-entry="'+e.id+'">Edit</button><button class="btn sm" data-a="tacticalDelete" data-entry="'+e.id+'">Delete</button></div>':''}</div>`).join('');}
+function tacticalHistoryHtml(fx,name){return tacticalHistory(fx,name).map(f=>`<details><summary>${fmtDate(f.date)} · ${esc(fixtureSeason(f))} · ${f.score?esc(matchScoreLabel(f)):'Fixture'}</summary>${tacticalEntries(f)}</details>`).join('')||'<p class="small muted">No previous opposition observations recorded.</p>';}
+function tacticalPitch(ours,theirs){return `<svg viewBox="0 0 300 320" style="width:100%;max-height:320px;background:#287c43;border-radius:12px"><g fill="none" stroke="#fff" opacity=".65"><rect x="8" y="8" width="284" height="304"/><path d="M8 160H292 M85 8V48H215V8 M85 312V272H215V312"/><circle cx="150" cy="160" r="32"/></g>${ours.map(p=>'<circle cx="'+(p.x*2.84+8)+'" cy="'+(p.y*3.04+8)+'" r="9" fill="#192749" stroke="#ff278c" stroke-width="2"/>').join('')}${theirs.map(p=>'<circle cx="'+((100-p.x)*2.84+8)+'" cy="'+((100-p.y)*3.04+8)+'" r="8" fill="white" stroke="#d43d48" stroke-width="2"/>').join('')}</svg><div class="small muted">Navy / pink: us · White / red: opposition</div>`;}
+function tacticalAdvice(ours,theirs,tags){const a=ours?.slots?.filter(p=>p.code!=='GK')||[],b=theirs;const def=a.filter(p=>p.y>=58).length,att=a.filter(p=>p.y<=30).length;let strengths=[],risks=[],tips=[];if(def>b[b.length-1]){strengths.push('Potential spare defender against their front line.');tips.push('Use the spare defender to support build-up while keeping cover.');}else if(def<=b[b.length-1])risks.push('Their front line may match or outnumber our deepest defenders.');if(att<b[0]){risks.push('Our forwards may be outnumbered by their defenders.');tips.push('Encourage midfield support and movement into wide spaces.');}else if(att>b[0])strengths.push('Potential attacking overload against their back line.');const mid=a.length-def-att,oppMid=b.slice(1,-1).reduce((x,y)=>x+y,0);if(mid>oppMid)strengths.push('Potential midfield numerical advantage.');if(mid<oppMid)risks.push('Possible midfield overload against us.');tips.push(...tags.map(t=>tacticalTags[t]).filter(Boolean));return [['Potential strengths',strengths],['Potential weaknesses',risks],['Coaching tips',tips]].map(([k,v])=>'<div><b>'+k+'</b>'+ (v.length?v.map(t=>'<div class="small">• '+esc(t)+'</div>').join(''):'<div class="small muted">No clear numerical advantage from formation alone.</div>')+'</div>').join('');}
+function sheetTactical(){const q=ui.sheet,f=fixture(q.id),m=f.match,F=formationById(m?.formationId||f.formationId),rows=tacticalRows(q.theirs,f.format),tags=q.tags||[];return `<h2>Tactical Assistant · ${esc(f.opponent)}</h2><p class="small muted">Our formation: ${esc(F?.name||'Unknown')} · Suggestions are based on shape and your observations, not live tracking.</p><label class="f">Opposition formation<input class="input" id="tacticalShape" value="${esc(q.theirs||'')}" placeholder="e.g. 2-4-2"></label><button class="btn primary" data-a="tacticalAnalyse">Compare formations</button>${rows&&F?.slots?tacticalPitch(F.slots,makeCustomSlots(rows))+tacticalAdvice(F,rows,tags):'<p class="small muted">Enter their outfield lines to compare.</p>'}<b>Quick observations</b><div class="row" style="flex-wrap:wrap;gap:6px">${Object.keys(tacticalTags).map(t=>'<button class="btn sm '+(tags.includes(t)?'primary':'')+'" data-a="tacticalTag" data-tag="'+esc(t)+'">'+esc(t)+'</button>').join('')}</div><label class="f">Match notes<textarea class="input" id="tacticalNote" rows="3">${esc(q.note||'')}</textarea></label><label class="f">What worked / reflection<textarea class="input" id="tacticalReflection" rows="2">${esc(q.reflection||'')}</textarea></label><button class="btn primary" data-a="tacticalSave">Save observation</button><details><summary>Observations this fixture (${(f.tactical||[]).length})</summary>${tacticalEntries(f)||'<p class="small muted">None yet.</p>'}</details><details><summary>Previous encounters</summary>${tacticalHistoryHtml(f,f.opponent)}</details><button class="btn" data-a="closeSheet">Done</button>`;}
+function tacticalDraft(){const q=ui.sheet;q.theirs=val('tacticalShape').trim();q.note=val('tacticalNote');q.reflection=val('tacticalReflection');}
+
 function renderSheet(){
   let s=document.getElementById('sheet');
   if(!ui.sheet){ if(s) s.remove(); return; }
@@ -1229,6 +1254,7 @@ function renderSheet(){
   if(k==='goal') h=sheetGoal();
   if(k==='injury') h=sheetInjury();
   if(k==='alerts') h=sheetAlerts();
+  if(k==='tactical') h=sheetTactical();
   if(k==='ask') h=sheetAsk();
   if(k==='formation') h=sheetFormation();
   if(k==='customFormation') h=sheetCustomFormation();
@@ -1392,6 +1418,13 @@ function previewCSV(text){
 /* ============================ Actions ============================ */
 function curFx(){ return fixture(ui.fxId); }
 const A = {
+  openTactical(d){const f=fixture(d.id||ui.fxId);if(!f)return 'keep';const last=(f.tactical||[]).slice(-1)[0];ui.sheet={k:'tactical',id:f.id,theirs:last?.theirs||'',tags:[]};},
+  tacticalAnalyse(){tacticalDraft();const f=fixture(ui.sheet.id);if(!tacticalRows(ui.sheet.theirs,f.format)){toast('Outfield lines must total '+(f.format-1));return 'keep';}},
+  tacticalTag(d){tacticalDraft();const q=ui.sheet;q.tags=q.tags.includes(d.tag)?q.tags.filter(t=>t!==d.tag):[...q.tags,d.tag];},
+  tacticalSave(){tacticalDraft();const q=ui.sheet,f=fixture(q.id),m=f.match,F=formationById(m?.formationId||f.formationId);if(q.theirs&&!tacticalRows(q.theirs,f.format)){toast('Check opposition formation');return 'keep';}if(!q.theirs&&!q.note&&!q.reflection&&!q.tags.length){toast('Add an observation first');return 'keep';}f.tactical=f.tactical||[];const old=f.tactical.find(e=>e.id===q.entry);const e={id:old?.id||uid(),ours:old?.ours||F?.name||'',theirs:q.theirs,tags:[...q.tags],note:q.note,reflection:q.reflection,when:old?.when||(m&&!m.ended?periodShort(f,m.period)+' · '+mmss(periodElapsed(m)):f.status==='played'?'Post-match':'Pre-match')};if(old)Object.assign(old,e);else f.tactical.push(e);ui.sheet={k:'tactical',id:f.id,theirs:q.theirs,tags:[]};save();toast('Opposition observation saved');},
+  tacticalEdit(d){const q=ui.sheet,e=fixture(q.id).tactical.find(x=>x.id===d.entry);if(e)Object.assign(q,{entry:e.id,theirs:e.theirs,tags:[...e.tags],note:e.note,reflection:e.reflection});},
+  tacticalDelete(d){const q=ui.sheet,f=fixture(q.id);if(!confirm('Delete this observation?'))return 'keep';f.tactical=f.tactical.filter(e=>e.id!==d.entry);if(q.entry===d.entry)ui.sheet={k:'tactical',id:f.id,tags:[]};save();},
+
   scheduleTab(d){ui.scheduleTab=d.v;ui.scheduleExpanded=false;},
   scheduleExpand(){ui.scheduleExpanded=!ui.scheduleExpanded;},
   scheduleFilter(d){ui[d.k==='season'?'scheduleSeason':'scheduleType']=d.value;ui.scheduleExpanded=false;},
