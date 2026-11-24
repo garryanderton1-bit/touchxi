@@ -40,6 +40,13 @@ html{-webkit-text-size-adjust:100%}
 </style>
 <style id="design-d05">
 .home-v2{gap:14px}.home-hero{background:var(--team-1,#192749);color:var(--team-ink,#fff);border-radius:16px;padding:20px 18px;border-bottom:4px solid var(--team-2,#ff278c)}.home-hero h2{font-size:30px;line-height:1.1;margin:8px 0}.home-hero .eyebrow,.home-hero .small{color:inherit;opacity:.8}.home-next .li{background:var(--surface-2);border-radius:12px;padding:16px 12px}.home-next .li b{font-size:19px}.home-form .form{display:flex;gap:8px}.home-form .form .pill{flex:1;max-width:64px;min-height:40px;border-radius:9px;font-weight:700}.home-tasks .li{border-bottom:1px solid rgba(120,130,150,.15)}.home-honours{width:100%;text-align:left;color:inherit;gap:12px}.home-honours .main{flex:1}.home-trophy{font-size:25px}
+</style><style id="design-d06">
+.md{top:env(safe-area-inset-top,0px);padding-top:0}
+.score-v2 .wrap{gap:8px;padding-top:8px;padding-bottom:10px}
+.score-v2 .sline{margin:4px 0;gap:8px}.score-v2 .sline .g{font-size:clamp(38px,11vw,58px);line-height:1}.score-v2 .sline .t{font-size:clamp(12px,3.5vw,18px);line-height:1.15}
+.score-v2 .clock{margin:2px 0;gap:8px}.score-v2 .clock .tm{font-size:36px;line-height:1}.score-v2 .ctl{margin-top:4px}.score-v2 .ctl .btn{min-height:44px;padding:8px}
+.match-more{position:relative}.match-more summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:grid;place-items:center;border:1px solid #ffffff55;border-radius:10px}.match-more summary::-webkit-details-marker{display:none}.match-more button{position:absolute;right:0;top:48px;z-index:5;white-space:nowrap;background:var(--surface);color:var(--fg)}
+.md .quick{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.md .quick .btn{font-size:11px;padding:6px 2px;min-height:52px;min-width:0}.md .quick strong{font-size:18px;line-height:1.1}
 </style></head>
 <body>
 <style>
@@ -1139,11 +1146,11 @@ function renderMatch(){
   let el=document.getElementById('md'); if(!el){ el=document.createElement('div'); el.id='md'; el.className='md'; document.body.appendChild(el); }
   const scroll=el.scrollTop;
   el.innerHTML = `
-  <div class="score"><div class="wrap">
+  <div class="score score-v2"><div class="wrap">
     <div class="row between"><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="closeMatch">‹ Back</button><span class="row" style="gap:8px"><span class="small" style="opacity:.8">${fx.format}v${fx.format} · ${F.name}</span><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="alertsSheet">Alerts</button></span></div>
     <div class="sline"><div class="t r">${esc(t.name)}</div><div class="g">${m.us}–${m.them}</div><div class="t">${esc(fx.opponent)}</div></div>
     <div class="clock"><span class="per">${m.ended?'FT':periodShort(fx,m.period)}</span><span class="tm ${per>lim?'late':''}" id="clk">${mmss(per)}</span><span class="small" style="opacity:.75">/ ${fx.periodMins}:00</span></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px"><button class="btn" style="color:var(--team-ink);background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.5);min-height:46px;padding:10px 18px;font-weight:700" data-a="openTactical">Opposition</button><button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35)" data-a="ask" data-k="restart">↻ Restart match</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px"><button class="btn" style="color:var(--team-ink);background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.5);min-height:46px;padding:10px 18px;font-weight:700" data-a="openTactical">Opposition</button><details class="match-more"><summary aria-label="Match options">•••</summary><button class="btn sm" data-a="ask" data-k="restart">Restart match</button></details></div>
     ${m.ended?'':`<div class="ctl">${m.running?`<button class="btn" data-a="pause">Pause</button>`:`<button class="btn go" data-a="start">${per>0?'Resume':m.period===0?'Kick off':'Start '+periodShort(fx,m.period)}</button>`}
       ${lastPeriod?`<button class="btn" data-a="ask" data-k="ft">Full time</button>`:`<button class="btn" data-a="ask" data-k="endP">End ${periodShort(fx,m.period)}</button>`}</div>
       ${m.period>0&&!m.running&&per===0?`<button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35);align-self:center" data-a="ask" data-k="back">‹ Back to ${periodShort(fx,m.period-1)} (ended by mistake)</button>`:''}`}
