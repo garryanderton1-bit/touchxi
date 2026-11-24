@@ -947,6 +947,7 @@ function vFixture(){
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
    <div class="muted small" style="margin-top:4px">${esc(fx.competition||'')} · ${fx.format}v${fx.format} · ${fx.periods}×${fx.periodMins} min${fx.windows>1?` · subs every ${blockMins(fx)} min`:''}</div></div>
 
+   <button class="btn primary big" data-a="openMatch" data-id="${fx.id}">${fx.match?'Resume matchday':'Go to matchday'}</button>
    <button class="btn" data-a="openTactical" data-id="${fx.id}">Opposition insight</button>
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fitIds(fx).length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
      <div class="row between" style="flex-wrap:wrap"><span class="small muted">${confirmed?`Matchday squad confirmed · ${fitIds(fx).length} selected`:`Select who is available, then confirm the matchday squad`}</span><button class="btn ${confirmed?'':'primary'} sm" data-a="confirmSquad">${confirmed?'Edit availability':'Confirm matchday squad'}</button></div>
@@ -981,7 +982,6 @@ function vFixture(){
        <td><div class="dots">${fx.plan.blocks.map(b=>{const j=b.slots.indexOf(id);return `<span class="${j===0?'gk':j>0?'on':''}" title="${j>=0?F.slots[j].code:'bench'}"></span>`}).join('')}</div></td></tr>`;}).join('')}
      </tbody></table></div>
    </div>
-   <button class="btn primary big" data-a="openMatch" data-id="${fx.id}">${fx.match?'Resume matchday':'Go to matchday'}</button>
    <button class="btn" data-a="manualResult" data-id="${fx.id}">Enter result and match report</button>
    ${fx.match?`<button class="btn danger" data-a="ask" data-k="reset">Clear the live match and start again</button>`:''}
   </div>`;
