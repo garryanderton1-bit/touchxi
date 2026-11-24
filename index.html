@@ -38,7 +38,9 @@ html{-webkit-text-size-adjust:100%}
 .sheet-header .sheet-close{flex-shrink:0;min-height:44px}
 .sheet-v2>*{flex-shrink:0}
 </style>
-</head>
+<style id="design-d05">
+.home-v2{gap:14px}.home-hero{background:var(--team-1,#192749);color:var(--team-ink,#fff);border-radius:16px;padding:20px 18px;border-bottom:4px solid var(--team-2,#ff278c)}.home-hero h2{font-size:30px;line-height:1.1;margin:8px 0}.home-hero .eyebrow,.home-hero .small{color:inherit;opacity:.8}.home-next .li{background:var(--surface-2);border-radius:12px;padding:16px 12px}.home-next .li b{font-size:19px}.home-form .form{display:flex;gap:8px}.home-form .form .pill{flex:1;max-width:64px;min-height:40px;border-radius:9px;font-weight:700}.home-tasks .li{border-bottom:1px solid rgba(120,130,150,.15)}.home-honours{width:100%;text-align:left;color:inherit;gap:12px}.home-honours .main{flex:1}.home-trophy{font-size:25px}
+</style></head>
 <body>
 <style>
 /* Layout: phone-first single column, sticky team bar on top, tab bar on the bottom, full-screen matchday overlay */
@@ -750,15 +752,16 @@ function vHome(){
  const played=fxs.filter(f=>f.status==='played'&&f.score).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
  const tasks=t.managerTasks||[],active=tasks.filter(x=>!x.done).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));
  const honours=t.teamHonours||[];
- return `<div class="stack">
- <div class="card stack"><div class="row between"><div class="eyebrow">Coming up</div><button class="btn sm" data-a="nav" data-v="fixtures">Schedule ›</button></div>
+ return `<div class="stack home-v2"><section class="home-hero"><div class="eyebrow">Your team · Your game</div><h2>${esc(t.name)}</h2><div class="small">${esc(String(t.format||9))}v${esc(String(t.format||9))} · Team dashboard</div></section>
+ <div class="card stack home-next"><div class="row between"><div class="eyebrow">Coming up</div><button class="btn sm" data-a="nav" data-v="fixtures">Schedule ›</button></div>
  ${coming.length?'<div class="list">'+coming.map(x=>'<button class="li" data-a="'+x.action+'" data-id="'+x.id+'"><span class="main"><b>'+esc(x.name)+'</b><div class="small muted">'+esc(x.type)+' · '+fmtDate(x.date)+(x.time?' · '+esc(x.time):'')+'</div></span><span>›</span></button>').join('')+'</div>':'<p class="small muted">Nothing coming up. Add fixtures, training or events in Schedule.</p>'}</div>
- <div class="card stack"><div class="eyebrow">Recent form</div><div class="form">${played.map((f,i)=>'<button class="pill '+result(f)+'" style="border:0;cursor:pointer;font:inherit" data-a="toggleFormResult" data-i="'+i+'" aria-label="View match result">'+result(f)+'</button>').join('')||'<span class="small muted">No results yet</span>'}</div>${played[ui.homeFormIndex]&&ui.homeFormIndex>=0?'<button class="li" data-a="openFx" data-id="'+played[ui.homeFormIndex].id+'"><span class="main"><b>'+esc(played[ui.homeFormIndex].opponent)+' '+esc(played[ui.homeFormIndex].score.us)+'–'+esc(played[ui.homeFormIndex].score.them)+'</b><div class="small muted">'+fmtDate(played[ui.homeFormIndex].date)+'</div></span><span>›</span></button>':''}</div>
- <div class="card stack"><div class="row between"><div class="eyebrow">Tasks · ${active.length}</div><button class="btn sm primary" data-a="newManagerTask">+ Add</button></div>
+ <div class="card stack home-form"><div class="eyebrow">Recent form</div><div class="form">${played.map((f,i)=>'<button class="pill '+result(f)+'" style="border:0;cursor:pointer;font:inherit" data-a="toggleFormResult" data-i="'+i+'" aria-label="View match result">'+result(f)+'</button>').join('')||'<span class="small muted">No results yet</span>'}</div>${played[ui.homeFormIndex]&&ui.homeFormIndex>=0?'<button class="li" data-a="openFx" data-id="'+played[ui.homeFormIndex].id+'"><span class="main"><b>'+esc(played[ui.homeFormIndex].opponent)+' '+esc(played[ui.homeFormIndex].score.us)+'–'+esc(played[ui.homeFormIndex].score.them)+'</b><div class="small muted">'+fmtDate(played[ui.homeFormIndex].date)+'</div></span><span>›</span></button>':''}</div>
+ <div class="card stack home-tasks"><div class="row between"><div class="eyebrow">Tasks · ${active.length}</div><button class="btn sm primary" data-a="newManagerTask">+ Add</button></div>
  ${active.length?'<div class="list">'+active.map(x=>'<div class="li" style="background:var(--surface,white);border-radius:12px;padding:10px 4px"><button class="btn sm" data-a="completeManagerTask" data-id="'+x.id+'" aria-label="Complete task">○</button><button class="main" style="text-align:left;background:none;border:0;color:inherit" data-a="editManagerTask" data-id="'+x.id+'"><b>'+esc(x.title)+'</b><div class="small muted">'+esc(x.priority||'Normal')+(x.due?' · Due '+fmtDate(x.due):'')+'</div></button></div>').join('')+'</div>':'<div style="text-align:center;padding:16px 8px"><div style="font-size:28px;margin-bottom:6px;color:var(--muted)">✓</div><b>All caught up</b><p class="small muted" style="margin:6px 0 0">Add something to organise or remember.</p></div>'}
  ${tasks.some(x=>x.done)?'<button class="btn sm" data-a="toggleCompletedTasks">'+(ui.showCompletedTasks?'Hide completed':'Completed ('+tasks.filter(x=>x.done).length+')')+'</button>':''}
  ${ui.showCompletedTasks?'<div class="list">'+tasks.filter(x=>x.done).map(x=>'<div class="li"><button class="btn sm" data-a="completeManagerTask" data-id="'+x.id+'">✓</button><span class="main small muted">'+esc(x.title)+'</span><button class="btn sm" data-a="editManagerTask" data-id="'+x.id+'">Edit</button></div>').join('')+'</div>':''}</div>
 
+ <button class="card home-honours row" data-a="nav" data-v="stats"><span class="home-trophy" aria-hidden="true">🏆</span><span class="main"><b>Trophy cabinet</b><span class="small muted" style="display:block">${honours.length} recorded honours</span></span><span aria-hidden="true">›</span></button>
  </div>`;
 }
 /* ---------- Squad ---------- */
