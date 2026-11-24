@@ -1938,6 +1938,28 @@ if('serviceWorker' in navigator){ window.addEventListener('load',()=>navigator.s
 .stats-leader-name small{font-weight:400;color:var(--muted)}
 .stats-leader-value{font-size:21px;font-variant-numeric:tabular-nums}
 </style>
+<style id="design-system-v1">
+:root{--r:14px;--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px}
+body{font-size:15px;line-height:1.5}
+h1,h2,h3{letter-spacing:0}
+.stack{gap:var(--space-3)}
+.card{padding:var(--space-4);box-shadow:0 1px 2px rgba(15,23,42,.035)}
+.card.flat{box-shadow:none;padding:0}
+.eyebrow{font-size:11px;letter-spacing:.09em}
+.btn{border-radius:10px;line-height:1.25;min-height:44px;font-weight:600}
+.btn.sm{min-height:40px;padding:8px 12px}
+.btn.big{min-height:52px}
+.btn:active:not(:disabled){filter:brightness(.94)}
+.input,select.input,textarea.input{font-size:16px;line-height:1.4}
+textarea.input{font-family:var(--f-body);min-height:88px}
+.li{min-height:52px}
+.tabs button{position:relative;min-height:58px;gap:4px}
+.tabs button.on::before{content:"";position:absolute;top:0;width:24px;height:3px;border-radius:0 0 3px 3px;background:var(--team-2)}
+.tabs button.on{font-weight:700}
+@media(max-width:380px){.card{padding:12px}.btn{padding-inline:10px}.tabs button{font-size:10.5px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:0.01ms!important;transition-duration:0.01ms!important}}
+</style>
+
 <script>
 document.addEventListener('click',function(e){
  const tab=e.target.closest('.stats-leader-tab');if(!tab)return;
