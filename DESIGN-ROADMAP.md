@@ -11,7 +11,7 @@ Preserve existing data and behaviour. Each change requires mobile testing and ap
 | D05 | Home screen | Committed; mobile testing pending |
 | D06 | Compact Matchday scoreboard | Committed; mobile testing pending |
 | D07 | Pitch visibility | Committed; mobile testing pending |
-| D08 | Substitution controls | Pending |
+| D08 | Substitution controls | Committed; mobile testing pending |
 | D09 | Squad list | Pending |
 | D10 | Player profiles | Pending |
 | D11 | Schedule cards | Pending |
