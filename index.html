@@ -1109,7 +1109,7 @@ function vTeam(){
    <h2>Team</h2>
    <div class="card"><div class="row between"><div class="eyebrow">Training</div><button class="btn sm" data-a="openAttendance">Open in Schedule</button></div></div>
    <div class="card stack">
-     <div class="row">${badgeHtml(t,56)}<label class="btn sm">Upload badge<input type="file" accept="image/*" id="badgeFile" hidden></label>${t.badge?'<button class="btn sm ghost" data-a="clearBadge">Remove</button>':''}</div>
+     <div class="row">${badgeHtml(t,56)}<label class="btn sm">Upload badge<input type="file" accept="image/*" id="badgeFile" hidden></label>${t.badge?'<button class="btn sm ghost" data-a="clearBadge">Remove badge</button>':''}</div>
      <div class="grid2" style="grid-template-columns:1fr 90px"><label class="f">Team name<input class="input" id="tName" value="${esc(t.name)}" data-a="teamField" data-k="name"></label><label class="f">Initials<input class="input" id="tShort" maxlength="3" value="${esc(t.short||'')}" data-a="teamField" data-k="short"></label></div>
      <div class="row" style="gap:16px">${[['primary','Primary'],['secondary','Accent'],['text','Text on primary']].map(([k,l])=>`<label class="f" style="align-items:center">${l}<span class="swatch"><input type="color" value="${t.colors[k]}" data-a="color" data-k="${k}"></span></label>`).join('')}</div>
      <div class="row" style="gap:6px">${[['#1B2A4E','#FF2E93','#FFFFFF','Navy & pink'],['#C8102E','#FFFFFF','#FFFFFF','Red & white'],['#0B3D91','#FFD100','#FFFFFF','Blue & yellow'],['#111111','#F2C230','#FFFFFF','Black & amber'],['#00703C','#FFFFFF','#FFFFFF','Green & white']].map(c=>`<button class="btn sm" data-a="preset" data-c="${c.slice(0,3).join(',')}"><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${c[0]}"></span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${c[1]};border:1px solid var(--line)"></span>${c[3]}</button>`).join('')}</div>
@@ -1801,7 +1801,7 @@ const A = {
   clearSample(){ const t=team(); const ids=new Set(db.players.filter(p=>p.teamId===t.id&&p.sample).map(p=>p.id));
     db.players=db.players.filter(p=>!ids.has(p.id)); db.fixtures=db.fixtures.filter(f=>!(f.teamId===t.id&&f.sample));
     db.fixtures.forEach(f=>{ f.available=f.available.filter(id=>!ids.has(id)); if(f.status!=='played') f.plan=null; }); toast('Examples cleared'); },
-  clearBadge(){ team().badge=null; },
+  clearBadge(){ if(!confirm('Remove the club badge? Your team, players, fixtures and statistics will not be affected.'))return 'keep'; team().badge=null; },
   preset(d){ const [p,s,t]=d.c.split(','); Object.assign(team().colors,{primary:p,secondary:s,text:t}); },
   switchTeam(d){ db.activeTeamId=d.id; ui.view='home'; },
   addTeam(){ ui.sheet={k:'team'}; },
