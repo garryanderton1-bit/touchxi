@@ -1041,7 +1041,7 @@ function vPlayed(fx){
      <div class="stack" style="gap:8px">${m?`<button class="btn" data-a="ask" data-k="reopen">Reopen live match</button>`:''}<button class="btn danger" data-a="ask" data-k="reset">Reset to unplayed</button></div></div>
 
     ${m?`<div class="card"><div class="eyebrow">Playing time</div><table class="mtab num"><tbody>${Object.entries(mins).sort((a,b)=>b[1]-a[1]).map(([id,s])=>`<tr><td>${esc(player(id)?.name||'')}</td><td style="text-align:right">${mins_(s)} min</td></tr>`).join('')}</tbody></table></div>
-    <div class="card"><div class="eyebrow">Match log</div>${m.events.map(e=>evHtml(fx,e)).join('')||'<p class="muted small">No events.</p>'}</div>`:''}
+    <div class="card"><div class="row between"><div class="eyebrow">Match log</div><button class="btn sm primary" data-a="addMatchEvent">+ Add event</button></div>${m.events.map(e=>editableMatchEvent(fx,e)).join('')||'<p class="muted small">No events.</p>'}</div>`:''}
   </div>`;
 }
 const mins_ = s=>Math.round(s/60);
@@ -1178,6 +1178,9 @@ function vTeam(){
 }
 
 /* ---------- Matchday ---------- */
+function editableMatchEvent(fx,e){return '<div class="row between">'+evHtml(fx,e)+(['goal','opp','sub','inj','fit'].includes(e.type)?'<button class="btn sm" data-a="editMatchEvent" data-id="'+esc(e.id)+'">Edit</button>':'')+'</div>';}
+function sheetMatchEvent(){const f=curFx(),m=f.match,q=ui.sheet,e=m.events.find(x=>x.id===q.id)||{},type=q.type||e.type||'goal',period=e.period??m.period,offset=m.periodActual.slice(0,period).reduce((a,b)=>a+b,0),sec=Math.max(0,Math.floor((e.sec??matchSec(m))-offset));const ids=[...new Set([...(f.available||[]),...(f.matchSquad||[]),...m.stints.map(x=>x.pid),e.scorer,e.assist,e.on,e.off,e.pid].filter(Boolean))];const pick=(id,v,label)=>'<label class="f">'+label+'<select class="input" id="'+id+'"><option value="">None / unknown</option>'+ids.map(p=>'<option value="'+esc(p)+'" '+(p===v?'selected':'')+'>'+esc(player(p)?.name||'Unknown')+'</option>').join('')+'</select></label>';return '<h2>'+(q.id?'Edit event':'Add event')+'</h2><label class="f">Event<select class="input" id="meType" data-a="matchEventType">'+Object.entries({goal:'Our goal / opposition own goal',opp:'Opposition goal',sub:'Substitution',inj:'Injury',fit:'Fit again'}).map(([k,v])=>'<option value="'+k+'" '+(type===k?'selected':'')+'>'+v+'</option>').join('')+'</select></label><label class="f">Period<select class="input" id="mePeriod">'+Array.from({length:Math.min(f.periods,m.period+1)},(_,i)=>'<option value="'+i+'" '+(i===period?'selected':'')+'>'+periodShort(f,i)+'</option>').join('')+'</select></label><label class="f">Minute within period<input class="input" id="meMinute" type="number" min="0" step="1" value="'+Math.floor(sec/60)+'"></label>'+ (type==='goal'?pick('mePlayer',e.scorer,'Scorer (None = opposition own goal)')+pick('meOther',e.assist,'Assist'):type==='sub'?pick('mePlayer',e.off,'Player off')+pick('meOther',e.on,'Player on'):type==='opp'?'':pick('mePlayer',e.pid,'Player'))+(type==='sub'?'<p class="small muted">Retrospective log only. Live lineup and recorded minutes are not changed.</p>':'')+'<button class="btn primary" data-a="saveMatchEvent">Save event</button>'+(q.id?'<button class="btn danger" data-a="removeMatchEvent">Delete event</button>':'')+'<button class="btn" data-a="closeSheet">Cancel</button>';}
+function applyMatchEvent(f,old,e){const m=f.match,delta=(t)=>Number(e?.type===t)-Number(old?.type===t),du=delta('goal'),dt=delta('opp');if(m.us+du<0||m.them+dt<0)throw Error('Invalid score');if(m.ended&&(f.extraTime?.played||f.penalties?.taken)&&(du||dt))throw Error('Use Edit score for extra-time or penalty results');if(m.ended&&f.score&&(f.score.us+du<0||f.score.them+dt<0))throw Error('Invalid final score');if(old)m.events=m.events.filter(x=>x.id!==old.id);if(e)m.events.push(e);m.events.sort((a,b)=>a.sec-b.sec);m.us+=du;m.them+=dt;if(m.ended){if(f.score){f.score.us+=du;f.score.them+=dt;}if(f.fullTimeScore){f.fullTimeScore.us+=du;f.fullTimeScore.them+=dt;}const scorers=f.scorers||[];if(old?.type==='goal'){const i=scorers.findIndex(x=>x.pid===old.scorer&&(x.assist||null)===(old.assist||null));if(i>=0)scorers.splice(i,1);}if(e?.type==='goal')scorers.push({pid:e.scorer,assist:e.assist});f.scorers=scorers;}}
 function evHtml(fx,e){
   const n=id=>esc(player(id)?.name||'—');
   const tm=`${periodShort(fx,e.period)} ${mmss(e.sec - (fx.match?fx.match.periodActual.slice(0,e.period).reduce((s,x)=>s+x,0):0))}`;
@@ -1245,7 +1248,7 @@ function renderMatch(){
       ${[...fx.available].sort((a,c)=>playedSec(m,c,sec)-playedSec(m,a,sec)).map(id=>{const s=playedSec(m,id,sec), pct=Math.min(100,s/full*100), tg=Math.min(100,(targets[id]||0)*60/full*100);
         return `<tr><td>${esc(firstName(player(id)))} ${onIds.includes(id)?'<span class="pill" style="padding:1px 6px">on</span>':''}${injured.includes(id)?'<span class="pill" style="background:var(--bad);color:#fff">Injured</span>':''}</td><td style="width:45%"><div class="barw"><i style="width:${pct}%"></i><b style="left:${tg}%"></b></div></td><td style="text-align:right"><span data-min="${id}">${mins_(s)}'</span></td><td>${flags[id]==='ovr'?'<span class="pill over">High</span>':flags[id]==='und'?'<span class="pill under">Low</span>':''}</td></tr>`}).join('')}
     </tbody></table><p class="small muted" style="margin:8px 0 0">The line marks each player's fair share of the full match.</p></div>
-    <div class="card"><div class="eyebrow">Match log</div>${[...m.events].reverse().map(e=>evHtml(fx,e)).join('')||'<p class="small muted">Goals and subs appear here.</p>'}</div>
+    <div class="card"><div class="row between"><div class="eyebrow">Match log</div><button class="btn sm primary" data-a="addMatchEvent">+ Add event</button></div>${[...m.events].reverse().map(e=>editableMatchEvent(fx,e)).join('')||'<p class="small muted">Goals and subs appear here.</p>'}</div>
   </div>`;
   el.scrollTop=scroll;
 }
@@ -1344,6 +1347,7 @@ function renderSheet(){
   if(k==='mergeOpponent') h=sheetMergeOpponent();
   if(k==='notes') h=sheetCoachingNotes();
   if(k==='goal') h=sheetGoal();
+  if(k==='matchEvent') h=sheetMatchEvent();
   if(k==='injury') h=sheetInjury();
   if(k==='alerts') h=sheetAlerts();
   if(k==='tactical') h=sheetTactical();
@@ -1821,6 +1825,11 @@ const A = {
   matchCard(){ui.sheet={k:'cards',id:ui.fxId,live:true};},
   saveCard(){const q=ui.sheet,f=fixture(q.id),side=val('cardSide'),colour=val('cardColour'),pid=side==='us'?val('cardPlayer'):null,opponentPlayer=side==='them'?val('cardOpponent').trim():'',minute=val('cardMinute')===''?null:Number(val('cardMinute'));if(side==='us'&&!pid){toast('Select our player');return 'keep';}if(minute!==null&&(!Number.isInteger(minute)||minute<0||minute>180)){toast('Enter a valid minute');return 'keep';}f.cards=f.cards||[];const old=f.cards.find(x=>x.id===q.cardId),data={side,colour,pid,opponentPlayer,minute:minute??(q.live&&f.match?Math.floor(matchSec(f.match)/60):null)};if(old)Object.assign(old,data);else f.cards.push({id:uid(),...data});ui.sheet=null;toast('Card recorded');},
   deleteCard(){const f=fixture(ui.sheet.id);f.cards=(f.cards||[]).filter(x=>x.id!==ui.sheet.cardId);ui.sheet=null;toast('Card removed');},
+  addMatchEvent(){ui.sheet={k:'matchEvent'};},
+  editMatchEvent(d){ui.sheet={k:'matchEvent',id:d.id};},
+  matchEventType(d){ui.sheet.type=val('meType');},
+  saveMatchEvent(){const f=curFx(),m=f.match,q=ui.sheet,old=m.events.find(x=>x.id===q.id),type=val('meType'),period=Number(val('mePeriod')),minute=Number(val('meMinute')),offset=m.periodActual.slice(0,period).reduce((a,b)=>a+b,0),sec=offset+minute*60,p=val('mePlayer')||null,o=val('meOther')||null;if(!Number.isInteger(minute)||minute<0||sec>(m.ended?m.totalSec:matchSec(m))+1||minute*60>(m.periodActual[period]??periodElapsed(m))+1){toast('Choose a time within the recorded match');return 'keep';}if(type==='sub'&&(!p||!o||p===o)||['inj','fit'].includes(type)&&!p||type==='goal'&&p&&p===o){toast('Check player selection');return 'keep';}const e={id:old?.id||uid(),type,period,sec,...(type==='goal'?{scorer:p,assist:o}:type==='sub'?{off:p,on:o}:['inj','fit'].includes(type)?{pid:p}:{})};try{applyMatchEvent(f,old,e);ui.sheet=null;toast('Event saved');}catch(err){toast(err.message);return 'keep';}},
+  removeMatchEvent(){const f=curFx(),old=f.match.events.find(x=>x.id===ui.sheet.id);if(!old||!confirm('Delete this match event?'))return 'keep';try{applyMatchEvent(f,old,null);ui.sheet=null;toast('Event deleted');}catch(err){toast(err.message);return 'keep';}},
   goal(){ ui.sheet={k:'goal'}; },
   pickScorer(d){ ui.sheet.scorer=d.id; if(d.id==='og'){ A.pickAssist({id:''}); return; } },
   pickAssist(d){ const fx=curFx(), m=fx.match; m.us++; m.events.push({id:uid(),type:'goal',sec:matchSec(m),period:m.period,scorer:ui.sheet.scorer==='og'?null:ui.sheet.scorer,assist:d.id||null}); ui.sheet=null; toast('Goal!'); },
