@@ -1548,31 +1548,30 @@ const A = {
   toggleHistoryReview(){ui.historyReviewOnly=!ui.historyReviewOnly;},
   toggleGoalReview(){ui.showGoalReview=!ui.showGoalReview;},
   editSeasonStats(d){
-    const y=d.season||ui.filter?.season;
+    const y=canonicalSeason(d.season||ui.filter?.season);
     if(!y)return 'keep';
-    const t=team(), existing=t.seasonStatsOverrides?.[y]||{}, current=computeStats({season:y});
+    const t=team(), existing=t.seasonStatsOverrides?.[y]||{}, current=computeStats({season:y}).T;
     const next={...existing};
-    for(const [key,label] of [['P','Matches played'],['W','Wins'],['D','Draws'],['L','Losses'],['GF','Goals scored'],['GA','Goals conceded']]){
-      const raw=prompt(seasonLabel(y)+' · '+label,String(existing[key]??current.T[key]));
+    for(const [key,label] of [['W','Wins'],['D','Draws'],['L','Losses'],['GF','Goals scored'],['GA','Goals conceded']]){
+      const raw=prompt(seasonLabel(y)+' · '+label,String(current[key]));
       if(raw===null)return 'keep';
-      if(!/^\\d+$/.test(raw.trim())){toast('Enter a whole number for '+label);return 'keep';}
+      if(!/^\d+$/.test(raw.trim())||!Number.isSafeInteger(Number(raw))){toast('Enter a whole number for '+label);return 'keep';}
       next[key]=Number(raw);
     }
-    if(next.W+next.D+next.L!==next.P){toast('Wins, draws and losses must equal matches played');return 'keep';}
+    next.P=next.W+next.D+next.L;
     t.seasonStatsOverrides={...(t.seasonStatsOverrides||{}),[y]:next};
     save();toast('Season totals saved');
   },
   editTeamStats(){
-    const t=team(), o=t.statsOverride||{}, current=computeStats({});
-    const fields=[['P','Matches played'],['W','Wins'],['D','Draws'],['L','Losses'],['GF','Goals scored'],['GA','Goals conceded']];
-    const next={...o};
-    for(const [key,label] of fields){
-      const raw=prompt(label+' (all-time)',String(o[key]??current.T[key]));
+    const t=team(), current=computeStats({}).T;
+    const next={...(t.statsOverride||{})};
+    for(const [key,label] of [['W','Wins'],['D','Draws'],['L','Losses'],['GF','Goals scored'],['GA','Goals conceded']]){
+      const raw=prompt(label+' (all-time)',String(current[key]));
       if(raw===null)return 'keep';
-      if(!/^\\d+$/.test(raw.trim())){toast('Enter a whole number for '+label);return 'keep';}
+      if(!/^\d+$/.test(raw.trim())||!Number.isSafeInteger(Number(raw))){toast('Enter a whole number for '+label);return 'keep';}
       next[key]=Number(raw);
     }
-    if(next.W+next.D+next.L!==next.P){toast('Wins, draws and losses must equal matches played');return 'keep';}
+    next.P=next.W+next.D+next.L;
     t.statsOverride=next;save();toast('All-time team stats saved');
   },
   editGoalCategories(){
