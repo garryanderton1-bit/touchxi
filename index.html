@@ -734,7 +734,8 @@ function computeStats(filter){
     if(!f.imported&&f.motm&&ps[f.motm]) ps[f.motm].motm++; if(f.star&&ps[f.star]) ps[f.star].star++;
     const pk=f.pitch||'Not recorded', pt=pitch[pk]=pitch[pk]||{P:0,W:0,D:0,L:0,GF:0,GA:0}; pt.P++; pt[result(f)]++; pt.GF+=Number(f.score.us); pt.GA+=Number(f.score.them);
     (f.imported?[]:(f.scorers||[])).forEach(s=>{ if(ps[s.pid]) ps[s.pid].goals++; if(s.assist&&ps[s.assist]) ps[s.assist].assists++; });
-    // Shootout kicks remain in the fixture record; they are not match or career goals.
+    // TouchXI career totals include successful shootout kicks once, independently of match scores.
+    if(!f.imported&&f.penalties?.taken) (f.penalties.kicks||[]).forEach(k=>{if(k.scored&&ps[k.pid])ps[k.pid].goals++;});
     if(f.match){ const seen={};
       f.match.stints.forEach(s=>{ const r=ps[s.pid]; if(!r) return; r.min+=(s.to-s.from)/60; r.pos[s.code]=(r.pos[s.code]||0)+(s.to-s.from); if(!seen[s.pid]){seen[s.pid]=s.from<1?'start':'sub';} });
       const ids=Array.isArray(f.matchSquad)?f.matchSquad:(f.squadConfirmed?fitIds(f):Object.keys(seen));
@@ -1136,7 +1137,7 @@ function vStats(){
     <div class="stats-leader-list" data-leaderboard>
      ${rows.filter(r=>ui.showFormerLeaderboard||isActivePlayer(r.p)).map(r=>`<div class="stats-leader-row" data-player-name="${esc(r.p.name)}" data-goals="${r.goals}" data-apps="${r.apps}" data-assists="${r.assists}" data-motm="${r.motm}" data-min="${Math.round(r.min)}"><span class="stats-leader-rank"></span><span class="stats-leader-name">${esc(r.p.name)}${!isActivePlayer(r.p)?' <small>(former)</small>':''}</span><strong class="stats-leader-value">${r.goals}</strong></div>`).join('')}
     </div>
-    <p class="small muted">${ui.filter?.comp?'Competition totals include recorded matches only; historical opening totals are not allocated by competition.':'Historical opening totals and recorded match statistics are included where available.'} Shootout kicks are excluded from goals. Check or edit figures in player profiles.</p>
+    <p class="small muted">${ui.filter?.comp?'Competition totals include recorded matches only; historical opening totals are not allocated by competition.':'Historical opening totals and recorded match statistics are included where available.'} Successful shootout kicks count towards player goals, not team match scores. Check or edit figures in player profiles.</p>
    </div>
    ${allTime?(()=>{const o=team().statsOverride||{}, credited=st.players.reduce((n,r)=>n+r.goals,0), own=Number(o.ownGoals)||0, unallocated=Number(o.unallocatedGoals)||0, remainder=T.GF-credited-own-unallocated;return '<div class="card stack"><div class="row between"><div class="eyebrow">All-time goals reconciliation</div><button class="btn sm" data-a="editGoalCategories">Edit categories</button></div><div class="row between"><span>Team goals</span><b>'+T.GF+'</b></div><div class="row between"><span>Player career goals</span><b>'+credited+'</b></div><div class="row between"><span>Opposition own goals</span><b>'+own+'</b></div><div class="row between"><span>Unallocated goals</span><b>'+unallocated+'</b></div><div class="row between"><span>Difference to reconcile</span><b>'+remainder+'</b></div><p class="small muted">Player career totals may cover seasons outside recorded fixtures. Own goals and unallocated goals count towards team goals, not player goals. A difference is shown for review rather than silently changing player records.</p></div>'})():''}
    <div class="card stack"><div class="row between"><div class="eyebrow">Season breakdown</div><span class="small muted">Tap to drill down</span></div>
