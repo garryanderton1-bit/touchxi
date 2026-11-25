@@ -1546,17 +1546,7 @@ const A = {
  shareVisitorMessage(){if(A.selectVisitorVenue()==='keep')return 'keep';const txt=visitorText();if(navigator.share){navigator.share({text:txt}).catch(e=>{if(e.name!=='AbortError')A.copyVisitor();});}else A.copyVisitor();return 'keep';},
  textVisitorCoach(){if(A.selectVisitorVenue()==='keep')return 'keep';const f=fixture(ui.sheet.fx),phone=opponentRecord(f.opponent)?.phone;if(phone)location.href='sms:'+phone.replace(/[^+0-9]/g,'')+'&body='+encodeURIComponent(visitorText());return 'keep';},
  shareVisitor(){if(A.selectVisitorVenue()==='keep')return 'keep';const file=visitorPDF();if(!file)return 'keep';const data={files:[file]};const download=()=>{const url=URL.createObjectURL(file),a=document.createElement('a');a.href=url;a.download=file.name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);toast('PDF ready to share from Files');};if(navigator.share&&navigator.canShare?.(data)){navigator.share(data).catch(e=>{if(e.name!=='AbortError')download();});}else download();return 'keep';},
- printVisitor(){const p=visitorParts();if(!p)return 'keep';const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print');return 'keep';}w.document.write('<html><head><title>Visitor information</title><style>@page{size:A4;margin:15mm}body{font:16px Arial;color:#101e30}h1{background:#101e30;color:white;padding:20px}p{white-space:pre-wrap}</style></head><body><h1>'+esc(team().name)+'</h1>'+p.lines.slice(1).map(l=>'<p>'+esc(l)+'</p>').join('')+'<a href="'+esc(mapsUrl(p.v.address))+'">Google Maps</a><style>
-html{padding:0!important;height:auto;min-height:100%;overflow-x:hidden;overscroll-behavior-y:none}
-body{height:auto;min-height:100dvh;padding-top:env(safe-area-inset-top,0px);overflow-x:clip}
-#app{min-height:calc(100dvh - env(safe-area-inset-top,0px));display:flex;flex-direction:column}
-#app>main{width:100%;flex:1;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
-#app>.tabs{position:fixed;bottom:0}
-.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
-.grid2>.f{min-width:0}.grid2 .input{min-width:0;max-width:100%}
-</style><script>
-document.addEventListener('change',function(e){const pairs={fTime:'fMeet',visitorKickoff:'visitorMeet'};const target=pairs[e.target.id];if(!target)return;const meet=document.getElementById(target);if(meet){const value=meetBefore(e.target.value);if(!Array.from(meet.options).some(o=>o.value===value))meet.add(new Option(value,value));meet.value=value;}});
-</script></body></html>');w.document.close();w.print();return 'keep';},
+ printVisitor(){const p=visitorParts();if(!p)return 'keep';const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print');return 'keep';}w.document.write('<html><head><title>Visitor information</title><style>@page{size:A4;margin:15mm}body{font:16px Arial;color:#101e30}h1{background:#101e30;color:white;padding:20px}p{white-space:pre-wrap}</style></head><body><h1>'+esc(team().name)+'</h1>'+p.lines.slice(1).map(l=>'<p>'+esc(l)+'</p>').join('')+'<a href="'+esc(mapsUrl(p.v.address))+'">Google Maps</a></body></html>');w.document.close();w.print();return 'keep';},
 
   openTactical(d){const f=fixture(d.id||ui.fxId);if(!f)return 'keep';const last=f.currentOpposition?{...f.currentOpposition,oppSlots:f.currentOpposition.slots}:(f.tactical||[]).slice(-1)[0];ui.sheet={k:'tactical',id:f.id,board:last?.board?.map(p=>({...p}))||null,boardKey:last?.boardKey,theirs:last?.theirs||'',oppSlots:last?.oppSlots||null,oppName:last?.oppName||'',oppLibraryId:last?.oppLibraryId||null,oppCustom:!!last?.oppSlots,customOppRows:last?.theirs||'',customOppSlots:last?.oppSlots?.map(p=>({...p}))||null,tags:[]};},
   oppSelect(d){const q=ui.sheet;tacticalDraft();const f=fixture(q.id),saved=oppLibrary(f).find(x=>'saved:'+x.id===d.value);q.oppLibraryId=saved?.id||null;q.oppName=saved?.name||'';q.oppCustom=!!saved||d.value==='other';q.oppSlots=saved?.slots?.map(p=>({...p}))||null;q.theirs=saved?.rows||(q.oppCustom?'':d.value);q.customOppRows=saved?.rows||'';q.generatedOppRows=saved?.rows||'';q.customOppSlots=saved?.slots?.map(p=>({...p}))||null;q.oppRoleIndex=1;q.board=null;q.boardKey=null;},
@@ -2146,5 +2136,16 @@ document.addEventListener('click',function(e){
  rows.forEach((row,i)=>{row.querySelector('.stats-leader-rank').textContent=i+1;row.querySelector('.stats-leader-value').textContent=Number(row.dataset[key]||0).toLocaleString('en-GB');list.appendChild(row)});
 });
 new MutationObserver(function(){document.querySelectorAll('.stats-leader-list').forEach(list=>{const rows=Array.from(list.querySelectorAll('.stats-leader-row'));if(rows.length&&rows[0].querySelector('.stats-leader-rank').textContent==='')rows.forEach((r,i)=>r.querySelector('.stats-leader-rank').textContent=i+1)})}).observe(document.body,{childList:true,subtree:true});
-</script></body>
+</script><style>
+html{padding:0!important;height:auto;min-height:100%;overflow-x:hidden;overscroll-behavior-y:none}
+body{height:auto;min-height:100dvh;padding-top:env(safe-area-inset-top,0px);overflow-x:clip}
+#app{min-height:calc(100dvh - env(safe-area-inset-top,0px));display:flex;flex-direction:column}
+#app>main{width:100%;flex:1;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+#app>.tabs{position:fixed;bottom:0}
+.grid2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.grid2>.f{min-width:0}.grid2 .input{min-width:0;max-width:100%}
+</style><script>
+document.addEventListener('change',function(e){const pairs={fTime:'fMeet',visitorKickoff:'visitorMeet'};const target=pairs[e.target.id];if(!target)return;const meet=document.getElementById(target);if(meet){const value=meetBefore(e.target.value);if(!Array.from(meet.options).some(o=>o.value===value))meet.add(new Option(value,value));meet.value=value;}});
+</script>
+</body>
 </html>
