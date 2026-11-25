@@ -477,7 +477,7 @@ let toastT=null; function toast(msg){ let t=document.getElementById('toast'); if
 // How well a player suits a slot code.
 function fit(p, code){
   const i = p.pos.indexOf(code);
-  if(i===0) return 10; if(i===1) return 7; if(i===2) return 5; if(i===3) return 3; if(i===4) return 2;
+  if(i===0) return 18; if(i===1) return 12; if(i===2) return 8; if(i===3) return 5; if(i===4) return 3;
   if((code==='RB'&&p.pos.includes('RWB'))||(code==='RWB'&&p.pos.includes('RB'))||(code==='LB'&&p.pos.includes('LWB'))||(code==='LWB'&&p.pos.includes('LB'))) return 5;
   if((code==='RW'&&p.pos.includes('RFWD'))||(code==='LW'&&p.pos.includes('LFWD'))||(code==='ST'&&(p.pos.includes('RFWD')||p.pos.includes('LFWD')))) return 5;
   if(code==='GK') return -25;
@@ -519,7 +519,7 @@ function assign(pids, slots, prev, gk){
 // Fair-share targets in minutes. Returns {targets, keeper}.
 function targetsFor(fx, pids){
   const F=formationById(fx.formationId), K=F.slots.length, full=fx.periods*fx.periodMins;
-  const prefs=fx.prefs||{}; const w=id=>({more:1.3,limited:0.55}[prefs[id]]||1);
+  const prefs=fx.prefs||{}; const w=id=>({extra:1.65,more:1.3,less:0.8,limited:0.55}[prefs[id]]||1);
   const gks=pids.filter(id=>player(id).pos[0]==='GK');
   const keeper = gks.length===1 ? gks[0] : null;
   const t={}; let pool=pids.filter(id=>id!==keeper), mins=K*full;
@@ -559,20 +559,20 @@ function planFrom(fx, from, played, prev, respectLocks){
       const prio=id=>{
         let s=(targets[id]-played[id]);
         if(prev && !prev.includes(id) && b>from-1 && b>0) s+=bm*0.6;          // sat out last block
-        if(prefs[id]==='start' && b===0) s+=1e6;
-        if(prefs[id]==='limited' && played[id]+bm>targets[id]+bm*0.25) s-=1e3;
+        if(mandatory.includes(id)) s+=bm*1.5;
+        if(prefs[id]==='limited' && played[id]+bm>targets[id]+bm*0.25) s-=bm*0.8;
         return s;
       };
-      const rest=pids.filter(id=>id!==gk).sort((a,c)=>(+mandatory.includes(c))-(+mandatory.includes(a))||prio(c)-prio(a));
+      const rest=pids.filter(id=>id!==gk).sort((a,c)=>prio(c)-prio(a));
       chosen=[gk,...rest.slice(0,K-1)];
-      for(const id of mandatory){if(chosen.includes(id))continue;const j=chosen.findLastIndex(x=>x!==gk&&!mandatory.includes(x));if(j>=0)chosen[j]=id;}
+
       let bench=pids.filter(id=>!chosen.includes(id));
       // positional balance: allow near-equal swaps that improve team shape
       let cur=assign(chosen,slots,prev,gk).score;
       for(let it=0;it<3;it++){
         let best=null;
-        for(const s of chosen){ if(s===gk || mandatory.includes(s)) continue;
-          for(const q of bench){ if(Math.abs(prio(s)-prio(q))>bm*0.5) continue;
+        for(const s of chosen){ if(s===gk) continue;
+          for(const q of bench){ if(prio(s)-prio(q)>bm*0.65) continue;
             const trial=chosen.map(x=>x===s?q:x); const sc=assign(trial,slots,prev,gk).score;
             if(sc>cur+4 && (!best||sc>best.sc)) best={s,q,sc}; } }
         if(!best) break;
@@ -599,7 +599,7 @@ function requiredForBlock(fx,b){
   if(r==='start'&&b===0)out.add(id);
   if(r==='must'&&(fx.mustPeriods?.[id]||[]).includes(p))out.add(id);
  });
- return [...out].filter(id=>fx.available.includes(id)&&!(fx.injured||[]).includes(id));
+ return [...out].filter(id=>fitIds(fx).includes(id));
 }
 function ruleConflicts(fx){
  const errors=[];
@@ -612,7 +612,7 @@ function ruleConflicts(fx){
 function safeReplan(fx){
  const errors=ruleConflicts(fx);
  if(errors.length)toast(errors[0]);
- if(fx.match&&!fx.match.ended)replanLive(fx,fx.match);else autoPlan(fx,false);
+ if(fx.match&&!fx.match.ended&&fx.match.startedAt)replanLive(fx,fx.match);else {autoPlan(fx,true);if(fx.match&&!fx.match.ended)fx.match=newMatch(fx);}
  return true;
 }
 function autoPlan(fx, keepLocks){
@@ -967,6 +967,7 @@ function pitchHtml(F, slots, opts={}){
      return `<button class="${cls}" style="left:${s.x}%;top:${s.y}%" data-a="slot" data-j="${j}"><span class="dot">${p?(p.number??''):'+'}</span><span class="nm">${p?esc(firstName(p)):s.code}</span><span class="sub" ${p&&minutes?`data-min="${p.id}"`:''}>${p&&minutes?minutes(p.id):s.code}</span></button>`;}).join('')}
   </div>`;
 }
+function captainSelect(f){const ids=fitIds(f);return '<label class="f">Match captain<select class="input" data-a="matchCaptain"><option value="">Not selected</option>'+ids.map(id=>'<option value="'+esc(id)+'" '+(f.captainId===id?'selected':'')+'>'+esc(player(id).name)+'</option>').join('')+'</select></label>';}
 function vFixture(){
   const fx=fixture(ui.fxId); if(!fx){ ui.view='fixtures'; return vFixtures(); }
   if(fx.status==='played') return vPlayed(fx);
@@ -980,7 +981,7 @@ function vFixture(){
   const pm=planMinutes(fx); const {targets}=targetsFor(fx,fitIds(fx));
   const full=fx.periods*fx.periodMins;
   const style=ui.styleTab||F.style;
-  const prefLabel={'':'Normal',more:'More time',limited:'Limited',start:'Must start',must:'Must play',injured:'Injured',unavailable:'Unavailable'};
+  const prefLabel={'':'Normal',extra:'Most time',more:'More time',less:'Less time',limited:'Limited',start:'Prefer start',must:'Preferred periods',injured:'Injured',unavailable:'Unavailable'};
   return `<div class="stack">
    <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="${ui.fixtureReturn||'fixtures'}">‹ ${ui.fixtureReturn==='home'?'Home':'Schedule'}</button><button class="btn sm" data-a="editFx" data-id="${fx.id}">Edit details</button></div>
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
@@ -988,6 +989,7 @@ function vFixture(){
 
    <button class="btn primary big" data-a="openMatch" data-id="${fx.id}">${fx.match?'Resume matchday':'Go to matchday'}</button>
    <button class="btn big" data-a="openTactical" data-id="${fx.id}">Opposition insight</button>
+   ${captainSelect(fx)}
    ${fixtureVenueCard(fx)}
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fitIds(fx).length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
      <div class="row between" style="flex-wrap:wrap"><span class="small muted">${confirmed?`Matchday squad confirmed · ${fitIds(fx).length} selected`:`Select who is available, then confirm the matchday squad`}</span><button class="btn ${confirmed?'':'primary'} sm" data-a="confirmSquad">${confirmed?'Edit availability':'Confirm matchday squad'}</button></div>
@@ -1233,7 +1235,7 @@ function renderMatch(){
       ${lastPeriod?`<button class="btn" data-a="ask" data-k="ft">Full time</button>`:`<button class="btn" data-a="ask" data-k="endP">End ${periodShort(fx,m.period)}</button>`}</div>
       ${m.period>0&&!m.running&&per===0?`<button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35);align-self:center" data-a="ask" data-k="back">‹ Back to ${periodShort(fx,m.period-1)} (ended by mistake)</button>`:''}`}
   </div></div>
-  <div class="wrap stack" style="padding-block:14px"><div class="rotation-nav"><button class="btn" data-a="editNextPlan">Rotation planner</button><button class="btn" data-a="rotationOverview">Playing time</button></div>
+  <div class="wrap stack" style="padding-block:14px"><div class="rotation-nav"><button class="btn" data-a="editNextPlan">Rotation planner</button><button class="btn" data-a="rotationOverview">Playing time</button></div>${captainSelect(fx)}
     ${m.alert&&!m.ended?(()=>{ const b=curBlock(fx,m), nx=m.plan[b+1]; const ch=nx?diffLineup(m.lineup,nx.slots):null; const can=m.alert.subs&&ch&&(ch.ons.length||ch.moves);
       return `<div class="alertpop" role="alert"><div><div class="at">${esc(m.alert.title)}</div><div>${esc(m.alert.body)}${can?` ${ch.ons.length} planned sub${ch.ons.length===1?'':'s'} ready.`:''}</div></div>
       <div class="row" style="gap:8px">${can?'<button class="btn" data-a="alertSubs">Make all subs</button>':''}<button class="btn" data-a="alertOk">OK</button></div></div>`;})():''}
@@ -2027,6 +2029,7 @@ document.addEventListener('change',e=>{
   if(a==='historyFilter'){if(el.dataset.k==='season')ui.historySeason=el.value;else ui.historyOpponent=el.value;render();return;}
   if(a==='mf'||a==='gr'){ draftField(el); if(el.dataset.k==='us'||el.dataset.k==='pid') setTimeout(renderSheet); return; }
   if(a==='mustPeriod'){const f=curFx(),id=el.dataset.id,p=+el.dataset.p;f.mustPeriods=f.mustPeriods||{};const old=f.mustPeriods[id]||[];f.mustPeriods[id]=el.checked?[...new Set([...old,p])]:old.filter(x=>x!==p);if(ruleConflicts(f).length){f.mustPeriods[id]=old;toast('Period already has maximum mandatory players');}else safeReplan(f);}
+  else if(a==='matchCaptain'){const f=curFx();f.captainId=fitIds(f).includes(el.value)?el.value:null;}
   else if(a==='pref'){ const f=curFx(), id=el.dataset.id; f.prefs=f.prefs||{}; f.injured=(f.injured||[]).filter(x=>x!==id);
     if(el.value==='injured'){ f.injured.push(id); f.available=f.available.filter(x=>x!==id); delete f.prefs[id]; } else if(el.value==='unavailable'){f.available=f.available.filter(x=>x!==id);f.prefs[id]='unavailable';} else {if(!f.available.includes(id))f.available.push(id);if(el.value)f.prefs[id]=el.value;else delete f.prefs[id];}
     if(el.value!=='must'&&f.mustPeriods)delete f.mustPeriods[id];safeReplan(f); }
