@@ -879,11 +879,10 @@ function sheetPlayer(id){
 }
 
 /* ---------- Fixtures ---------- */
-function fixtureGround(f){const v=f.homeAway==='H'?(homeVenues().find(x=>x.id===f.homeVenueId)||homeVenues()[0]):null;return f.homeAway==='H'?(v?.name||f.venue||''):f.venue||opponentRecord(f.opponent)?.address||'';}
 function fxRow(f){
   const d=new Date(f.date+'T12:00:00'); const r=result(f);
   return `<button class="li fx" data-a="openFx" data-id="${f.id}"><div class="date"><b class="num">${d.getDate()}</b><span>${d.toLocaleDateString('en-GB',{month:'short'})}</span></div>
-    <div class="main"><div class="title">${f.homeAway==='A'?'@ ':''}${esc(f.opponent)}</div><div class="small muted">${esc(f.competition||'')} · ${esc(seasonLabel(fixtureSeason(f)))} · ${f.format}v${f.format}${f.pitch?' · '+esc(f.pitch):''}${f.sample?' · example':''}${f.match&&!f.match.ended?' · <b style="color:var(--team-2)">live</b>':''}</div>${f.status!=='played'&&fixtureGround(f)?'<div class="small muted" style="margin-top:4px">'+esc(f.time||'')+' · '+esc(fixtureGround(f))+'</div>':''}</div>
+    <div class="main"><div class="title">${f.homeAway==='A'?'@ ':''}${esc(f.opponent)}</div><div class="small muted">${esc(f.competition||'')} · ${esc(seasonLabel(fixtureSeason(f)))} · ${f.format}v${f.format}${f.pitch?' · '+esc(f.pitch):''}${f.sample?' · example':''}${f.match&&!f.match.ended?' · <b style="color:var(--team-2)">live</b>':''}</div></div>
     ${f.score?`<span class="pill ${r} num">${esc(matchScoreLabel(f))}</span>`:'<span class="muted">›</span>'}</button>`;
 }
 function vFixtures(){
@@ -936,9 +935,8 @@ function sheetFixture(id){
    <label class="f">Meet time${quarterTime("fMeet",f.visitorMeet||meetBefore(f.visitorKickoff||f.time||"10:30"))}</label><label class="f">Season<select class="input" id="fSeason">${[...new Set([...seasonOptions(f.date),f.season||season(f.date)])].sort().map(y=>'<option value="'+esc(y)+'" '+((f.season||season(f.date))===y?'selected':'')+'>'+esc(seasonLabel(y))+'</option>').join('')}</select></label>
    <div class="grid2"><label class="f">Home / away<select class="input" id="fHA"><option value="H" ${f.homeAway==='H'?'selected':''}>Home</option><option value="A" ${f.homeAway==='A'?'selected':''}>Away</option><option value="N" ${f.homeAway==='N'?'selected':''}>Neutral</option></select></label><label class="f">Competition<input class="input" id="fComp" value="${esc(f.competition)}" list="compList"></label></div>
    <datalist id="compList">${[...new Set(['League','Cup','Friendly','Tournament',...fixtures().map(x=>x.competition).filter(Boolean)])].map(o=>`<option value="${esc(o)}">`).join('')}</datalist>
-   <div class="grid2"><label class="f">Venue / address<input class="input" id="fVenue" value="${esc(f.venue||((f.homeAway==='A')?opponentRecord(f.opponent)?.address||'':''))}"></label><label class="f">Pitch type<select class="input" id="fPitch"><option value="">Not set</option>${PITCHES.map(x=>`<option ${f.pitch===x?'selected':''}>${x}</option>`).join('')}</select></label></div>
-   <label class="f">Saved home venue<select class="input" id="fHomeVenue">${venueOptions(f.homeVenueId||(f.homeAway==='H'?homeVenues()[0]?.id:''))}</select></label>
-   ${id?`<div class="row" style="flex-wrap:wrap">${mapsLink(f.homeAway==='H'?(homeVenues().find(v=>v.id===f.homeVenueId)||homeVenues()[0])?.address:fixtureGround(f))}${f.homeAway==='H'?`<button class="btn sm" data-a="visitorSheet" data-fx="${f.id}">Share visitor information</button>`:''}</div>`:''}
+   <div class="grid2"><label class="f">Venue<input class="input" id="fVenue" value="${esc(f.venue)}"></label><label class="f">Pitch type<select class="input" id="fPitch"><option value="">Not set</option>${PITCHES.map(x=>`<option ${f.pitch===x?'selected':''}>${x}</option>`).join('')}</select></label></div>
+   <label class="f">Saved home venue<select class="input" id="fHomeVenue">${venueOptions(f.homeVenueId)}</select></label>
    <div class="grid3"><label class="f">Format<select class="input" id="fFmt">${FORMATS.map(n=>`<option value="${n}" ${f.format===n?'selected':''}>${n}v${n}</option>`).join('')}</select></label>
      <label class="f">Periods<select class="input" id="fPer">${[1,2,3,4].map(n=>`<option value="${n}" ${f.periods===n?'selected':''}>${n===1?'1':n===2?'2 halves':n===4?'4 quarters':n+' thirds'}</option>`).join('')}</select></label>
      <label class="f">Minutes each<input class="input num" type="number" inputmode="numeric" id="fMins" value="${f.periodMins}"></label></div>
@@ -978,7 +976,7 @@ function vFixture(){
 
    <button class="btn primary big" data-a="openMatch" data-id="${fx.id}">${fx.match?'Resume matchday':'Go to matchday'}</button>
    <button class="btn big" data-a="openTactical" data-id="${fx.id}">Opposition insight</button>
-
+   ${fixtureVenueCard(fx)}
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fitIds(fx).length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
      <div class="row between" style="flex-wrap:wrap"><span class="small muted">${confirmed?`Matchday squad confirmed · ${fitIds(fx).length} selected`:`Select who is available, then confirm the matchday squad`}</span><button class="btn ${confirmed?'':'primary'} sm" data-a="confirmSquad">${confirmed?'Edit availability':'Confirm matchday squad'}</button></div>
      <div class="list">${visiblePs.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||(!on?'unavailable':''));
