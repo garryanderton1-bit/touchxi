@@ -1310,12 +1310,13 @@ function renderSheet(){
   title.id='sheet-title';title.removeAttribute('style');header.appendChild(title);
   const close=document.createElement('button');close.className='btn sm sheet-close';close.dataset.a='closeSheet';close.textContent=['tactical','alerts','backup'].includes(k)?'Done':'Close';close.setAttribute('aria-label',close.textContent==='Done'?'Done, close panel':'Close without saving');header.appendChild(close);
   if(k==='player'){
-    close.textContent='Cancel';close.setAttribute('aria-label','Cancel without saving');
+    close.textContent='Close';close.setAttribute('aria-label','Close player editor');
     header.prepend(close);
     const saveButton=panel.querySelector('[data-a="savePlayer"]');
     if(saveButton){const footer=saveButton.parentElement;saveButton.className='btn primary sm sheet-close';header.appendChild(saveButton);footer.remove();}
   }
   panel.prepend(header);panel.setAttribute('aria-labelledby','sheet-title');panel.scrollTop=scroll;
+  if(k==='player')panel.dataset.initialPlayerFields=playerEditorSnapshot(panel);
 }
 function sheetGoal(){
   const fx=fixture(ui.fxId), m=fx.match, st=ui.sheet;
@@ -1603,7 +1604,9 @@ const A = {
     save();
   },
   editPlayer(d){ ui.sheet={k:'player',id:d.id||null}; ui.confirm=null; },
-  closeSheet(){ if(ui.sheet?.k==='tactical'){tacticalDraft();const q=ui.sheet,f=fixture(q.id);if(q.theirs){if(!tacticalRows(q.theirs,f.format)||(q.oppCustom&&(!q.oppSlots||q.customOppRows!==q.theirs))){toast('Check opposition formation');return 'keep';}applyLiveOpp(q,f);toast('Opposition formation saved');}else if(q.oppCustom){toast('Complete custom formation first');return 'keep';}} ui.sheet=null; ui.confirm=null; },
+  discardPlayerEdits(){ui.sheet=null;ui.confirm=null;},
+  continuePlayerEdits(){document.querySelector('[data-player-close-prompt]')?.remove();return 'keep';},
+  closeSheet(){ if(ui.sheet?.k==='player'&&confirmPlayerClose())return 'keep'; if(ui.sheet?.k==='tactical'){tacticalDraft();const q=ui.sheet,f=fixture(q.id);if(q.theirs){if(!tacticalRows(q.theirs,f.format)||(q.oppCustom&&(!q.oppSlots||q.customOppRows!==q.theirs))){toast('Check opposition formation');return 'keep';}applyLiveOpp(q,f);toast('Opposition formation saved');}else if(q.oppCustom){toast('Complete custom formation first');return 'keep';}} ui.sheet=null; ui.confirm=null; },
   confirm(d){ ui.confirm=d.k||null; },
   savePlayer(d){
     const name=val('pName').trim(); if(!name){ toast('Add a name first'); return 'keep'; }
@@ -1863,13 +1866,24 @@ function refreshPlayerHistoryFields(){
  }
  }
 }
+function playerEditorSnapshot(panel){
+ return JSON.stringify([...panel.querySelectorAll('input:not([type="file"]),select,textarea')].filter(el=>!el.matches('[data-apps-season],[data-motm-season],[data-historical-season]')||+el.value!==0).map(el=>[el.id||el.getAttribute('data-apps-season')+'|'+el.getAttribute('data-motm-season')+'|'+el.getAttribute('data-historical-season'),el.value]).sort((a,b)=>a[0].localeCompare(b[0])));
+}
+function confirmPlayerClose(){
+ const panel=document.querySelector('.sheet[data-kind="player"]');
+ if(!panel||panel.dataset.initialPlayerFields===playerEditorSnapshot(panel))return false;
+ if(panel.querySelector('[data-player-close-prompt]'))return true;
+ const prompt=document.createElement('div');prompt.dataset.playerClosePrompt='1';prompt.className='card stack';prompt.setAttribute('role','alertdialog');prompt.setAttribute('aria-label','Unsaved changes');prompt.style.cssText='position:sticky;top:76px;z-index:11;background:var(--surface);box-shadow:0 6px 24px #0003';
+ prompt.innerHTML='<b>Save changes?</b><p class="small muted">You have unsaved changes to this player.</p><button class="btn primary" data-a="savePlayer" data-id="'+esc(ui.sheet.id||'')+'">Save changes and close</button><button class="btn" data-a="discardPlayerEdits">Close without saving</button><button class="btn ghost" data-a="continuePlayerEdits">Keep editing</button>';
+ panel.querySelector('.sheet-header').after(prompt);panel.scrollTop=0;return true;
+}
 /* ---------- Event wiring ---------- */
 document.addEventListener('change',e=>{if(['pStartSeason','pLeavingSeason'].includes(e.target.id))refreshPlayerHistoryFields();});
 document.addEventListener('pointerdown',e=>{const g=e.target.closest('[data-board-marker]'),svg=g?.closest('svg'),q=svg?.id==='liveTacticalBoard'?ui.liveBoard:ui.sheet;if(!g||!q?.boardEdit)return;const v=q.board.find(p=>(p.away?'a':'h')+p.i===g.dataset.boardMarker);if(!svg||!v)return;e.preventDefault();g.setPointerCapture(e.pointerId);const move=ev=>{const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;const t=pt.matrixTransform(svg.getScreenCTM().inverse()),x=Math.max(24,Math.min(296,t.x)),y=Math.max(24,Math.min(396,t.y));if(q.board.some(p=>p!==v&&Math.hypot(p.x-x,p.y-y)<29))return;v.x=x;v.y=y;g.querySelector('circle').setAttribute('cx',x);g.querySelector('circle').setAttribute('cy',y);g.querySelectorAll('text').forEach((el,i)=>{el.setAttribute('x',x);el.setAttribute('y',y+[3.5,23,33][i]);});};const end=()=>{g.removeEventListener('pointermove',move);g.removeEventListener('pointerup',end);g.removeEventListener('pointercancel',end);};g.addEventListener('pointermove',move);g.addEventListener('pointerup',end);g.addEventListener('pointercancel',end);});
 document.addEventListener('pointerdown',e=>{const token=e.target.closest('[data-opp-slot]');if(!token||ui.sheet?.k!=='tactical'||+token.dataset.oppSlot===0)return;const q=ui.sheet,i=+token.dataset.oppSlot,board=document.getElementById('oppEditor');if(!board||!q.customOppSlots?.[i])return;e.preventDefault();token.setPointerCapture(e.pointerId);const move=ev=>{const b=board.getBoundingClientRect(),p=q.customOppSlots[i];p.x=Math.max(7,Math.min(93,(ev.clientX-b.left)*100/b.width));p.y=Math.max(7,Math.min(79,(ev.clientY-b.top)*100/b.height));token.style.left=p.x+'%';token.style.top=p.y+'%';};const end=()=>{token.removeEventListener('pointermove',move);token.removeEventListener('pointerup',end);token.removeEventListener('pointercancel',end);};token.addEventListener('pointermove',move);token.addEventListener('pointerup',end);token.addEventListener('pointercancel',end);});
 document.addEventListener('click',e=>{
   const el=e.target.closest('[data-a]');
-  if(e.target.classList&&e.target.classList.contains('scrim')){ ui.sheet=null; ui.confirm=null; render(); return; }
+  if(e.target.classList&&e.target.classList.contains('scrim')){ if(ui.sheet?.k==='player'&&confirmPlayerClose())return; ui.sheet=null; ui.confirm=null; render(); return; }
   if(!el||el.tagName==='SELECT'||el.tagName==='INPUT') return;
   const fn=A[el.dataset.a]; if(!fn) return;
   e.preventDefault();
