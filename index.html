@@ -1309,6 +1309,12 @@ function renderSheet(){
   if(existing&&existing!==panel&&existing.querySelector('[data-a="closeSheet"]'))existing.remove();
   title.id='sheet-title';title.removeAttribute('style');header.appendChild(title);
   const close=document.createElement('button');close.className='btn sm sheet-close';close.dataset.a='closeSheet';close.textContent=['tactical','alerts','backup'].includes(k)?'Done':'Close';close.setAttribute('aria-label',close.textContent==='Done'?'Done, close panel':'Close without saving');header.appendChild(close);
+  if(k==='player'){
+    close.textContent='Cancel';close.setAttribute('aria-label','Cancel without saving');
+    header.prepend(close);
+    const saveButton=panel.querySelector('[data-a="savePlayer"]');
+    if(saveButton){const footer=saveButton.parentElement;saveButton.className='btn primary sm sheet-close';header.appendChild(saveButton);footer.remove();}
+  }
   panel.prepend(header);panel.setAttribute('aria-labelledby','sheet-title');panel.scrollTop=scroll;
 }
 function sheetGoal(){
