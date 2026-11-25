@@ -1069,10 +1069,10 @@ function vStats(){
     <div class="stats-score-grid num"><div><span>Goals scored</span><strong>${T.GF}</strong></div><div><span>Goals conceded</span><strong>${T.GA}</strong></div><div><span>Goal difference</span><strong>${gd>0?'+':''}${gd}</strong></div></div>
     ${recent.length?'<div class="stats-trend"><div class="eyebrow" style="margin-bottom:8px">Last five results</div>'+recent.slice(-5).reverse().map(f=>{const r=result(f),tag=r==='W'?'Won':r==='D'?'Drawn':'Lost';return '<button class="li" data-a="openFx" data-id="'+esc(f.id)+'"><span style="font-weight:750;color:'+(r==='W'?'var(--good)':r==='L'?'var(--bad)':'var(--muted)')+'">'+tag+'</span><span class="main">'+esc(f.opponent)+'</span><b class="num">'+f.score.us+'–'+f.score.them+'</b><span>›</span></button>'}).join('')+'</div>':''}
    </div>
-   <div class="card stack stats-players"><div class="row between"><div class="eyebrow">Player leaderboard</div><span class="small muted">Select a statistic</span></div>
+   <div class="card stack stats-players"><div class="row between"><div class="eyebrow">Player leaderboard</div><button class="btn sm" data-a="toggleFormerLeaderboard" aria-pressed="${!!ui.showFormerLeaderboard}">${ui.showFormerLeaderboard?"Hide former players":"Show former players"}</button></div>
     <div class="stats-leader-tabs" role="group" aria-label="Player statistic"><button type="button" class="stats-leader-tab active" data-stat="goals">Goals</button><button type="button" class="stats-leader-tab" data-stat="apps">Apps</button><button type="button" class="stats-leader-tab" data-stat="assists">Assists</button><button type="button" class="stats-leader-tab" data-stat="motm">MOTM</button><button type="button" class="stats-leader-tab" data-stat="min">Minutes</button></div>
     <div class="stats-leader-list" data-leaderboard>
-     ${rows.map(r=>`<div class="stats-leader-row" data-player-name="${esc(r.p.name)}" data-goals="${r.goals}" data-apps="${r.apps}" data-assists="${r.assists}" data-motm="${r.motm}" data-min="${Math.round(r.min)}"><span class="stats-leader-rank"></span><span class="stats-leader-name">${esc(r.p.name)}${!isActivePlayer(r.p)?' <small>(former)</small>':''}</span><strong class="stats-leader-value">${r.goals}</strong></div>`).join('')}
+     ${rows.filter(r=>ui.showFormerLeaderboard||isActivePlayer(r.p)).map(r=>`<div class="stats-leader-row" data-player-name="${esc(r.p.name)}" data-goals="${r.goals}" data-apps="${r.apps}" data-assists="${r.assists}" data-motm="${r.motm}" data-min="${Math.round(r.min)}"><span class="stats-leader-rank"></span><span class="stats-leader-name">${esc(r.p.name)}${!isActivePlayer(r.p)?' <small>(former)</small>':''}</span><strong class="stats-leader-value">${r.goals}</strong></div>`).join('')}
     </div>
     <p class="small muted">Historical opening totals and recorded match statistics are included where available. Check or edit figures in player profiles.</p>
    </div>
@@ -1548,6 +1548,7 @@ const A = {
   saveManagerTask(){const t=team(),title=val('taskTitle').trim();if(!title){toast('Enter a task');return 'keep';}t.managerTasks=t.managerTasks||[];const x=t.managerTasks.find(x=>x.id===ui.sheet.id),data={title,due:val('taskDue'),priority:val('taskPriority'),notes:val('taskNotes')};if(x)Object.assign(x,data);else t.managerTasks.push({id:uid(),done:false,...data});ui.sheet=null;toast('Task saved');},
   completeManagerTask(d){const x=(team().managerTasks||[]).find(x=>x.id===d.id);if(x)x.done=!x.done;},
   deleteManagerTask(){team().managerTasks=(team().managerTasks||[]).filter(x=>x.id!==ui.sheet.id);ui.sheet=null;},
+  toggleFormerLeaderboard(){ui.showFormerLeaderboard=!ui.showFormerLeaderboard;},
   toggleRunnerHonours(){ui.showRunnerHonours=!ui.showRunnerHonours;},
   toggleTeamHonours(){ui.showTeamHonours=!ui.showTeamHonours;},
   newTeamHonour(){ui.sheet={k:'teamHonour'};},
