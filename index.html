@@ -1239,19 +1239,17 @@ function renderMatch(){
       ${lastPeriod?`<button class="btn" data-a="ask" data-k="ft">Full time</button>`:`<button class="btn" data-a="ask" data-k="endP">End ${periodShort(fx,m.period)}</button>`}</div>
       ${m.period>0&&!m.running&&per===0?`<button class="btn sm ghost" style="color:var(--team-ink);border-color:rgba(255,255,255,.35);align-self:center" data-a="ask" data-k="back">‹ Back to ${periodShort(fx,m.period-1)} (ended by mistake)</button>`:''}`}
   </div></div>
-  <div class="wrap stack" style="padding-block:14px"><div class="rotation-nav"><button class="btn" data-a="editNextPlan">Rotation planner</button><button class="btn" data-a="rotationOverview">Playing time</button></div>${captainSelect(fx)}
+  <div class="wrap stack" style="padding-block:14px"><div class="rotation-nav"><button class="btn" data-a="editNextPlan">Rotation planner</button><button class="btn" data-a="rotationOverview">Playing time</button></div><details style="margin:0"><summary class="small muted">Captain · ${esc(player(fx.captainId)?.name||"Not selected")}</summary>${captainSelect(fx)}</details>
     ${m.alert&&!m.ended?(()=>{ const b=curBlock(fx,m), nx=m.plan[b+1]; const ch=nx?diffLineup(m.lineup,nx.slots):null; const can=m.alert.subs&&ch&&(ch.ons.length||ch.moves);
       return `<div class="alertpop" role="alert"><div><div class="at">${esc(m.alert.title)}</div><div>${esc(m.alert.body)}${can?` ${ch.ons.length} planned sub${ch.ons.length===1?'':'s'} ready.`:''}</div></div>
       <div class="row" style="gap:8px">${can?'<button class="btn" data-a="alertSubs">Make all subs</button>':''}<button class="btn" data-a="alertOk">OK</button></div></div>`;})():''}
     ${!m.ended&&per>=lim?`<div class="alert"><span>${periodLabel(fx,m.period)} time is up</span>${lastPeriod?'':`<button class="btn sm" style="background:#fff;color:#000;border:0" data-a="ask" data-k="endP">End ${periodShort(fx,m.period)}</button>`}</div>`:''}
     ${due?`<div class="alert"><span>Sub window now</span><button class="btn sm" style="background:#fff;color:#000;border:0" data-a="applyNext">Make planned subs</button></div>`:''}
     ${m.ended?`<div class="card"><div class="eyebrow">Full time</div><p style="margin:6px 0 10px">Stats saved. Playing time and goals now show in Stats.</p><div class="stack" style="gap:8px"><button class="btn primary" data-a="manualResult" data-id="${fx.id}">Add man of the match, star player and pitch</button><button class="btn" data-a="ask" data-k="reopen">Reopen match (full time by mistake)</button></div></div>`:''}
-    <div class="quick">
+    <div class="quick" style="grid-template-columns:repeat(2,minmax(0,1fr))">
       <button class="btn primary" data-a="goal" ${m.ended?'disabled':''}><strong>+1</strong>Our goal</button>
       <button class="btn" data-a="oppGoal" ${m.ended?'disabled':''}><strong>+1</strong>Their goal</button>
-      <button class="btn" data-a="matchCard" ${m.ended?'disabled':''}><strong>Card</strong>Yellow / Red</button>
-      <button class="btn" data-a="formSheet" ${m.ended?'disabled':''}><strong>${F.name}</strong>Formation</button>
-      <button class="btn" data-a="undo" ${m.events.length?'':'disabled'}><strong>↶</strong>Undo</button>
+      <details class="match-action-more" style="grid-column:1/-1"><summary class="small muted" style="padding:8px 0">More match actions</summary><div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn sm" data-a="matchCard" ${m.ended?'disabled':''}>Yellow / Red card</button><button class="btn sm" data-a="formSheet" ${m.ended?'disabled':''}>Formation · ${F.name}</button><button class="btn sm" data-a="undo" ${m.events.length?'':'disabled'}>Undo</button></div></details>
     </div>
     ${fx.currentOpposition?'<button class="btn sm" data-a="toggleLiveOpp">'+(ui.hideLiveOpp?'Show opposition':'Hide opposition')+'</button>':''}
     ${fx.currentOpposition&&!ui.hideLiveOpp&&tacticalRows(fx.currentOpposition.theirs,fx.format)?tacticalPitch(F.slots,fx.currentOpposition.slots||makeCustomSlots(tacticalRows(fx.currentOpposition.theirs,fx.format)),m.lineup,fx.opponent,t.name,{state:liveBoardState(fx),minutes:id=>mins_(playedSec(m,id,sec))+"'"}):pitchHtml(F,m.lineup,{sel:ui.sel&&ui.sel.t==='slot'?ui.sel.j:null,minutes:id=>mins_(playedSec(m,id,sec))+"'",flags})}
