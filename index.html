@@ -559,7 +559,7 @@ function planFrom(fx, from, played, prev, respectLocks){
       const prio=id=>{
         let s=(targets[id]-played[id]);
         if(prev && !prev.includes(id) && b>from-1 && b>0) s+=bm*0.6;          // sat out last block
-        if(mandatory.includes(id)) s+=bm*1.5;
+        if(mandatory.includes(id)) s+=bm*(B+2);
         if(prefs[id]==='limited' && played[id]+bm>targets[id]+bm*0.25) s-=bm*0.8;
         return s;
       };
@@ -571,7 +571,7 @@ function planFrom(fx, from, played, prev, respectLocks){
       let cur=assign(chosen,slots,prev,gk).score;
       for(let it=0;it<3;it++){
         let best=null;
-        for(const s of chosen){ if(s===gk) continue;
+        for(const s of chosen){ if(s===gk || mandatory.includes(s)) continue;
           for(const q of bench){ if(prio(s)-prio(q)>bm*0.65) continue;
             const trial=chosen.map(x=>x===s?q:x); const sc=assign(trial,slots,prev,gk).score;
             if(sc>cur+4 && (!best||sc>best.sc)) best={s,q,sc}; } }
@@ -981,7 +981,7 @@ function vFixture(){
   const pm=planMinutes(fx); const {targets}=targetsFor(fx,fitIds(fx));
   const full=fx.periods*fx.periodMins;
   const style=ui.styleTab||F.style;
-  const prefLabel={'':'Normal',extra:'Most time',more:'More time',less:'Less time',limited:'Limited',start:'Prefer start',must:'Preferred periods',injured:'Injured',unavailable:'Unavailable'};
+  const prefLabel={'':'Normal',extra:'Most time',more:'More time',less:'Less time',limited:'Limited',start:'Must start',must:'Must play',injured:'Injured',unavailable:'Unavailable'};
   return `<div class="stack">
    <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="${ui.fixtureReturn||'fixtures'}">‹ ${ui.fixtureReturn==='home'?'Home':'Schedule'}</button><button class="btn sm" data-a="editFx" data-id="${fx.id}">Edit details</button></div>
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
