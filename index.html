@@ -420,7 +420,7 @@ function sheetOpponent(){
 }
 function sheetCoachingNotes(){const f=fixture(ui.sheet.id),n=f.coachingNotes||{};return `<h2>Coaching notes · ${esc(f.opponent)}</h2><label class="f">What went well<textarea class="input" id="noteGood" rows="3">${esc(n.good||'')}</textarea></label><label class="f">What needs improving<textarea class="input" id="noteImprove" rows="3">${esc(n.improve||'')}</textarea></label><label class="f">Focus for next training<textarea class="input" id="noteTraining" rows="3">${esc(n.training||'')}</textarea></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveNotes">Save notes</button></div>`;}
 
-const fitIds = fx => fx.available.filter(id=>player(id)&&(fx.status==='played'||fx.match||isActivePlayer(player(id)))&&!(fx.injured||[]).includes(id)&&fx.prefs?.[id]!=='unavailable');
+const fitIds = fx => fx.available.filter(id=>player(id)&&(fx.status==='played'||isActivePlayer(player(id)))&&!(fx.injured||[]).includes(id)&&fx.prefs?.[id]!=='unavailable');
 function attendanceStatus(f,pid){if(f.status!=='played'||f.imported||!f.score)return null;if((Array.isArray(f.matchSquad)?f.matchSquad:(f.squadConfirmed?fitIds(f):[])).includes(pid)||f.match?.stints?.some(x=>x.pid===pid&&((x.to??f.match.totalSec??0)>x.from)))return 'Played';if((f.injured||[]).includes(pid))return 'Injured';if(f.prefs?.[pid]==='unavailable')return 'Unavailable';if(!f.available?.includes(pid))return 'Not selected';return 'Available but unused';}
 function attendanceRows(pid){return fixtures().filter(f=>f.status==='played'&&!f.imported&&f.score&&f.attendanceTracked!==false).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(f=>({f,status:attendanceStatus(f,pid)})).filter(x=>x.status);}
 
@@ -1743,7 +1743,7 @@ const A = {
   block(d){ ui.block=+d.b; ui.sel=null; },
   slot(d){ if(ui.view==='match') return liveTap({t:'slot',j:+d.j}); planTap({t:'slot',j:+d.j}); },
   benchSel(d){ if(ui.view==='match') return liveTap({t:'bench',id:d.id}); planTap({t:'bench',id:d.id}); },
-  openMatch(d){ ui.fxId=d.id; ui.view='match'; ui.sel=null; ui.confirm=null; const f=curFx(); if(!f.match) f.match=newMatch(f); keepAwake(); startTick(); },
+  openMatch(d){ ui.fxId=d.id; ui.view='match'; ui.sel=null; ui.confirm=null; const f=curFx(); if(!f.match || (!f.match.startedAt&&!f.match.running&&!f.match.ended&&!f.match.events.length&&f.match.plan.some(b=>b.slots.some(id=>id&&!isActivePlayer(player(id)))))){autoPlan(f,true);f.match=newMatch(f);} keepAwake(); startTick(); },
   closeMatch(){ ui.view='fixture'; ui.sel=null; ui.confirm=null; const f=curFx(); if(f&&f.match&&!f.match.running&&f.match.period===0&&periodElapsed(f.match)===0&&!f.match.events.length) f.match=null; },
   start(){ unlockAudio(); const m=curFx().match; if(!m.startedAt) m.startedAt=Date.now(); m.running=true; m.runStart=Date.now(); keepAwake(); },
   pause(){ const m=curFx().match; m.acc+=Date.now()-m.runStart; m.running=false; m.runStart=null; },
