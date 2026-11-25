@@ -1330,14 +1330,15 @@ function renderSheet(){
     const saveButton=panel.querySelector('[data-a="savePlayer"]');
     if(saveButton){const footer=saveButton.parentElement;saveButton.className='btn primary sm sheet-close';header.appendChild(saveButton);footer.remove();}
   }
-  if(k==='teamHonour'){
-    const saveButton=panel.querySelector('[data-a="saveTeamHonour"]');
+  if(k==='teamHonour'||k==='honour'){
+    const saveButton=panel.querySelector(k==='teamHonour'?'[data-a="saveTeamHonour"]':'[data-a="saveHonour"]');
     if(saveButton){
       const footer=saveButton.parentElement;
+      close.textContent='Cancel';close.setAttribute('aria-label','Cancel without saving');
       saveButton.className='btn primary sm sheet-close';
-      close.replaceWith(saveButton);
-      const cancel=footer.querySelector('[data-a="closeSheet"]');
-      if(cancel){cancel.textContent='Cancel';footer.replaceWith(cancel);}else footer.remove();
+      header.appendChild(saveButton);
+      footer.remove();
+      header.style.gap='6px';
     }
   }
   panel.prepend(header);panel.setAttribute('aria-labelledby','sheet-title');panel.scrollTop=scroll;
