@@ -936,7 +936,7 @@ function sheetFixture(id){
    <div class="grid2"><label class="f">Home / away<select class="input" id="fHA"><option value="H" ${f.homeAway==='H'?'selected':''}>Home</option><option value="A" ${f.homeAway==='A'?'selected':''}>Away</option><option value="N" ${f.homeAway==='N'?'selected':''}>Neutral</option></select></label><label class="f">Competition<input class="input" id="fComp" value="${esc(f.competition)}" list="compList"></label></div>
    <datalist id="compList">${[...new Set(['League','Cup','Friendly','Tournament',...fixtures().map(x=>x.competition).filter(Boolean)])].map(o=>`<option value="${esc(o)}">`).join('')}</datalist>
    <div class="grid2"><label class="f">Venue<input class="input" id="fVenue" value="${esc(f.venue)}"></label><label class="f">Pitch type<select class="input" id="fPitch"><option value="">Not set</option>${PITCHES.map(x=>`<option ${f.pitch===x?'selected':''}>${x}</option>`).join('')}</select></label></div>
-   <label class="f">Saved home venue<select class="input" id="fHomeVenue">${venueOptions(f.homeVenueId)}</select></label>
+   <label class="f">Saved home venue<select class="input" id="fHomeVenue">${venueOptions(f.homeVenueId)}</select></label>${id?fixtureVenueCard(f):""}
    <div class="grid3"><label class="f">Format<select class="input" id="fFmt">${FORMATS.map(n=>`<option value="${n}" ${f.format===n?'selected':''}>${n}v${n}</option>`).join('')}</select></label>
      <label class="f">Periods<select class="input" id="fPer">${[1,2,3,4].map(n=>`<option value="${n}" ${f.periods===n?'selected':''}>${n===1?'1':n===2?'2 halves':n===4?'4 quarters':n+' thirds'}</option>`).join('')}</select></label>
      <label class="f">Minutes each<input class="input num" type="number" inputmode="numeric" id="fMins" value="${f.periodMins}"></label></div>
@@ -976,7 +976,7 @@ function vFixture(){
 
    <button class="btn primary big" data-a="openMatch" data-id="${fx.id}">${fx.match?'Resume matchday':'Go to matchday'}</button>
    <button class="btn big" data-a="openTactical" data-id="${fx.id}">Opposition insight</button>
-   ${fixtureVenueCard(fx)}
+
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fitIds(fx).length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
      <div class="row between" style="flex-wrap:wrap"><span class="small muted">${confirmed?`Matchday squad confirmed · ${fitIds(fx).length} selected`:`Select who is available, then confirm the matchday squad`}</span><button class="btn ${confirmed?'':'primary'} sm" data-a="confirmSquad">${confirmed?'Edit availability':'Confirm matchday squad'}</button></div>
      <div class="list">${visiblePs.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||(!on?'unavailable':''));
