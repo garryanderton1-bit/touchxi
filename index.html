@@ -517,24 +517,15 @@ function assign(pids, slots, prev, gk){
   return {slots:out,score:total};
 }
 // Fair-share targets in minutes. Returns {targets, keeper}.
-function targetsFor(fx, pids){
-  const F=formationById(fx.formationId), K=F.slots.length, full=fx.periods*fx.periodMins;
-  const prefs=fx.prefs||{}; const weight=v=>{const old={extra:10,more:8,less:3,limited:1,normal:5};const n=old[v]??Number(v);return n>=1&&n<=10?0.55+(n-1)*0.1125+(n>5?(n-5)*0.0175:0):null;}; const w=id=>weight(prefs[id])??weight(player(id)?.timePriority)??1;
-  const gks=pids.filter(id=>player(id).pos.includes('GK'));
-  const keeper = gks.length===1 ? gks[0] : null;
-  const t={}; let pool=pids.filter(id=>id!==keeper), mins=K*full;
-  if(keeper){ t[keeper]=full; mins-=full; }
-  if(pids.length<=K){ pids.forEach(id=>t[id]=full); return {targets:t,keeper}; }
-  // water-fill with cap at full time
-  let free=[...pool], remain=mins;
-  for(let it=0;it<10&&free.length;it++){
-    const W=free.reduce((s,id)=>s+w(id),0); let capped=false;
-    for(const id of free){ t[id]=remain*w(id)/W; }
-    for(const id of [...free]) if(t[id]>full){ t[id]=full; capped=true; }
-    if(!capped) break;
-    const fixed=free.filter(id=>t[id]>=full); free=free.filter(id=>t[id]<full); remain=mins-pool.filter(id=>!free.includes(id)).reduce((s,id)=>s+t[id],0);
-  }
-  return {targets:t,keeper};
+function abilityRating(fx,id){const old={extra:10,more:8,less:3,limited:1,normal:5};const rating=v=>{const n=old[v]??Number(v);return n>=1&&n<=10?n:null;};return rating(fx.prefs?.[id])??rating(player(id)?.timePriority)??5;}
+function targetsFor(fx,pids){
+ const K=formationById(fx.formationId).slots.length,full=fx.periods*fx.periodMins,gks=pids.filter(id=>player(id).pos.includes('GK')),keeper=gks.length===1?gks[0]:null,t={};
+ if(pids.length<=K){pids.forEach(id=>t[id]=full);return {targets:t,keeper};}
+ const pool=pids.filter(id=>id!==keeper),capacity=(K-(keeper?1:0))*full,base=Math.min(full/2,capacity/pool.length);
+ if(keeper)t[keeper]=full;
+ pool.forEach(id=>t[id]=base);let remaining=capacity-base*pool.length;
+ for(let i=0;i<pool.length&&remaining>1e-7;i++){const free=pool.filter(id=>t[id]<full-1e-7);if(!free.length)break;const W=free.reduce((a,id)=>a+abilityRating(fx,id),0);let used=0;for(const id of free){const add=Math.min(full-t[id],remaining*abilityRating(fx,id)/W);t[id]+=add;used+=add;}remaining-=used;}
+ return {targets:t,keeper};
 }
 // Build lineups for blocks [from..end). played: pid->minutes already played before `from`. prev: lineup before `from`.
 function planFrom(fx, from, played, prev, respectLocks){
@@ -543,6 +534,7 @@ function planFrom(fx, from, played, prev, respectLocks){
   const {targets,keeper}=targetsFor(fx,pids);
   const prefs=fx.prefs||{};
   played={...played}; pids.forEach(id=>played[id]=played[id]||0);
+  const initial={...played}, prior=prev;
   const blocks=[];
   for(let b=from;b<B;b++){
     const old = fx.plan&&fx.plan.blocks&&fx.plan.blocks[b];
@@ -584,6 +576,19 @@ function planFrom(fx, from, played, prev, respectLocks){
     blocks.push({slots:a.slots,locked:false});
     a.slots.forEach(id=>{if(id)played[id]+=bm});
     prev=a.slots;
+  }
+  // Improve the whole remaining plan, preserving locked blocks and requested periods.
+  const floor=fx.periods*fx.periodMins/2;
+  const score=()=>{const totals={...initial};let shape=0, strengths=[],last=prior;
+    for(const block of blocks){let strength=0;block.slots.forEach((id,k)=>{if(!id)return;totals[id]=(totals[id]||0)+bm;strength+=abilityRating(fx,id);shape+=fit(player(id),slots[k]);});strengths.push(strength);last=block.slots;}
+    const mean=strengths.reduce((a,b)=>a+b,0)/Math.max(1,strengths.length);
+    return shape*0.35-strengths.reduce((a,b)=>a+(b-mean)**2,0)*0.35-pids.reduce((a,id)=>a+((totals[id]-targets[id])/bm)**2*8+Math.max(0,(floor-totals[id])/bm)*10000,0);
+  };
+  let best=score();
+  for(let pass=0;pass<8;pass++){let improved=false;
+    for(let i=0;i<blocks.length;i++){const block=blocks[i];if(block.locked)continue;const required=requiredForBlock(fx,from+i),old=block.slots;
+      for(const out of old.filter(id=>id&&id!==old[0]&&id!==keeper&&!required.includes(id))){for(const incoming of pids.filter(id=>!old.includes(id))){const chosen=old.filter(Boolean).map(id=>id===out?incoming:id);block.slots=assign(chosen,slots,i?blocks[i-1].slots:prior,old[0]).slots;const value=score();if(value>best+1e-7){best=value;improved=true;break;}block.slots=old;}if(block.slots!==old)break;}
+    }if(!improved)break;
   }
   return {blocks,targets,keeper};
 }
