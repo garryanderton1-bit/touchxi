@@ -1239,9 +1239,10 @@ function renderMatch(){
       return `<div class="selbar"><span><b>${esc(p.name)}</b> selected. ${ui.sel.t==='slot'?'Tap a sub to bring on, or another player on the pitch to switch positions.':'Tap a player on the pitch to bring '+esc(firstName(p))+' on for them.'}</span>
       <span class="row" style="gap:6px"><button class="btn sm danger" data-a="injure" data-id="${id}">Injured, off for the game</button><button class="btn sm" data-a="clearSel">Cancel</button></span></div>`;})():''}
     <div><div class="row between" style="margin-bottom:6px"><div class="eyebrow">Substitutes · ${bench.length}</div><span class="small muted">${liveBoardState(fx).boardEdit?'Finish editing to make substitutions':'Tap a substitute, then an on-pitch player'}</span></div>
-      <div class="bench">${bench.map(id=>{const p=player(id);return `<button class="bchip ${ui.sel&&ui.sel.t==='bench'&&ui.sel.id===id?'sel':''}" data-a="benchSel" data-id="${id}" ${m.ended||liveBoardState(fx).boardEdit?'disabled':''} style="min-height:56px;flex:1 1 130px;justify-content:flex-start;padding:10px"><span class="shirt">${p.number??''}</span><span style="text-align:left">${esc(firstName(p))}<br><span class="m" data-min="${id}">${mins_(playedSec(m,id,sec))}'</span></span>${flags[id]==='und'?'<span class="pill under">Needs time</span>':''}</button>`}).join('')||'<span class="muted small">No subs</span>'}</div>
+      <div class="bench" style="display:grid;grid-template-columns:repeat(${bench.length===1?1:bench.length===3||bench.length>=5?3:2},minmax(0,1fr))">${bench.map(id=>{const p=player(id);return `<button class="bchip ${ui.sel&&ui.sel.t==='bench'&&ui.sel.id===id?'sel':''}" data-a="benchSel" data-id="${id}" ${m.ended||liveBoardState(fx).boardEdit?'disabled':''} style="min-height:56px;min-width:0;justify-content:flex-start;padding:10px"><span class="shirt">${p.number??''}</span><span style="text-align:left">${esc(firstName(p))}<br><span class="m" data-min="${id}">${mins_(playedSec(m,id,sec))}'</span></span>${flags[id]==='und'?'<span class="pill under">Needs time</span>':''}</button>`}).join('')||'<span class="muted small">No subs</span>'}</div>
       ${injured.length?`<div class="row" style="gap:6px;margin-top:10px"><span class="eyebrow">Injured</span>${injured.map(id=>`<span class="pill" style="background:var(--bad);color:#fff">${esc(firstName(player(id)))}</span><button class="btn sm" data-a="fitAgain" data-id="${id}">Fit again</button>`).join('')}</div>`:''}</div>
     ${!m.ended&&next?`<div class="card stack"><div class="row between"><div class="eyebrow">Next planned subs · ${nextAt}</div><button class="btn sm primary" data-a="applyNext" ${nextChanges.ons.length||nextChanges.moves?'':'disabled'}>Make all subs</button></div>
+      <button class="btn sm" data-a="editNextPlan">Edit planned subs</button>
       ${nextChanges.ons.length?nextChanges.pairs.map(([on,off,code])=>`<div class="subrow"><span class="on-a">▲ ${esc(player(on)?.name)}</span><span class="muted">for</span><span class="off-a">▼ ${esc(player(off)?.name||'—')}</span><span class="pos" style="margin-left:auto">${code}</span><button class="btn sm" data-a="makeOne" data-on="${on}" data-off="${off||''}" style="min-height:44px">Make sub</button></div>`).join(''):'<div class="small muted">No changes planned. The same players carry on.</div>'}
       ${nextChanges.moves?`<div class="small muted">${nextChanges.moves} positional switch${nextChanges.moves>1?'es':''} included.</div>`:''}</div>`:''}
     <div class="card"><div class="eyebrow">Playing time</div><table class="mtab num"><tbody>
@@ -1252,6 +1253,7 @@ function renderMatch(){
   </div>`;
   el.scrollTop=scroll;
 }
+function sheetNextPlan(){const f=curFx(),m=f.match,q=ui.sheet,nx=m.plan[q.block];if(!nx)return '<h2>Plan unavailable</h2><button class="btn" data-a="closeSheet">Close</button>';const F=formationById(m.formationId),ids=[...new Set([...fitIds(f),...m.lineup.filter(Boolean)])];return '<h2>Edit planned subs</h2><p class="small muted">Choose the players for the next rotation. Saving changes the plan only, not the live lineup.</p>'+nx.slots.map((id,j)=>'<label class="f">'+esc(F.slots[j].code)+' · Currently '+esc(player(m.lineup[j])?.name||'Empty')+'<select class="input" id="nextSlot'+j+'"><option value="">Empty</option>'+ids.map(p=>'<option value="'+esc(p)+'" '+(p===id?'selected':'')+'>'+esc(player(p)?.name||'Unknown')+'</option>').join('')+'</select></label>').join('')+'<button class="btn primary" data-a="saveNextPlan">Save plan</button><button class="btn" data-a="closeSheet">Cancel</button>';}
 function diffLineup(cur,next){
   const ons=next.filter(id=>id&&!cur.includes(id)), offs=cur.filter(id=>id&&!next.includes(id));
   const F=null; const pairs=ons.map((on,i)=>{ const j=next.indexOf(on); const fx=fixture(ui.fxId); const code=formationById(fx.match.formationId).slots[j].code; return [on, cur[j]&&offs.includes(cur[j])?cur[j]:offs[i], code]; });
@@ -1348,6 +1350,7 @@ function renderSheet(){
   if(k==='notes') h=sheetCoachingNotes();
   if(k==='goal') h=sheetGoal();
   if(k==='matchEvent') h=sheetMatchEvent();
+  if(k==='nextPlan') h=sheetNextPlan();
   if(k==='injury') h=sheetInjury();
   if(k==='alerts') h=sheetAlerts();
   if(k==='tactical') h=sheetTactical();
@@ -1750,6 +1753,8 @@ const A = {
   endPeriod(){ const fx=curFx(), m=fx.match; if(m.running){ m.acc+=Date.now()-m.runStart; m.running=false; }
     m.periodActual.push(m.acc/1000); m.acc=0; m.period++; m._key=null; replanLive(fx,m);
     toast(`${periodShort(fx,m.period-1)} ended. Check the planned subs.`); },
+  editNextPlan(){const f=curFx(),m=f.match;ui.sheet={k:'nextPlan',block:curBlock(f,m)+1};},
+  saveNextPlan(){const f=curFx(),m=f.match,q=ui.sheet,nx=m.plan[q.block];if(!nx||q.block!==curBlock(f,m)+1){toast('Rotation window changed. Reopen the editor.');ui.sheet=null;return;}const slots=nx.slots.map((_,j)=>val('nextSlot'+j)||null),ids=slots.filter(Boolean);if(new Set(ids).size!==ids.length){toast('A player cannot occupy two positions');return 'keep';}if(ids.length!==Math.min(f.format,fitIds(f).length)||ids.some(id=>!fitIds(f).includes(id))){toast('Select the correct number of available players');return 'keep';}const required=requiredForBlock(f,q.block);if(required.some(id=>!ids.includes(id))){toast('A mandatory player is missing from this rotation');return 'keep';}nx.slots=slots;nx.locked=true;ui.sheet=null;toast('Next rotation saved');},
   applyNext(){ const fx=curFx(), m=fx.match, b=curBlock(fx,m), nx=m.plan[b+1]; if(!nx) return;
     // the next block becomes the current lineup now; plan keeps following blocks
     setLineup(fx,m,[...nx.slots]); toast('Subs made'); },
