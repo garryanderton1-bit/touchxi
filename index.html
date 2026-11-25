@@ -879,11 +879,12 @@ function sheetPlayer(id){
 }
 
 /* ---------- Fixtures ---------- */
+function scheduleGround(f){if(f.homeAway==='H'){const v=homeVenues().find(x=>x.id===f.homeVenueId)||homeVenues()[0];return v?.name||f.venue||'';}return f.venue||opponentRecord(f.opponent)?.address||'';}
 function fxRow(f){
-  const d=new Date(f.date+'T12:00:00'); const r=result(f);
+  const d=new Date(f.date+'T12:00:00'); const r=result(f); const ground=f.status==='played'?'':scheduleGround(f);
   return `<button class="li fx" data-a="openFx" data-id="${f.id}"><div class="date"><b class="num">${d.getDate()}</b><span>${d.toLocaleDateString('en-GB',{month:'short'})}</span></div>
     <div class="main"><div class="title">${f.homeAway==='A'?'@ ':''}${esc(f.opponent)}</div><div class="small muted">${esc(f.competition||'')} · ${esc(seasonLabel(fixtureSeason(f)))} · ${f.format}v${f.format}${f.pitch?' · '+esc(f.pitch):''}${f.sample?' · example':''}${f.match&&!f.match.ended?' · <b style="color:var(--team-2)">live</b>':''}</div></div>
-    ${f.score?`<span class="pill ${r} num">${esc(matchScoreLabel(f))}</span>`:'<span class="muted">›</span>'}</button>`;
+    ${ground?`<span class="small muted" style="max-width:35%;overflow-wrap:anywhere">${esc(ground)}</span>`:''}${f.score?`<span class="pill ${r} num">${esc(matchScoreLabel(f))}</span>`:'<span class="muted">›</span>'}</button>`;
 }
 function vFixtures(){
  const today=new Date().toISOString().slice(0,10);
@@ -2081,11 +2082,17 @@ async function installHistoricalResults(){
     toast('Historical results updated: '+added+' added, '+merged+' matched');
   }catch(e){console.warn('Historical import not yet available',e);}
 }
-load();
-if(ui.view==='match') ui.view='fixture';
-render();
-startTick();
-installHistoricalResults();
+try {
+ load();
+ if(ui.view==='match') ui.view='fixture';
+ try { render(); } catch(e) { console.error('TouchXI initial view',e); ui.view='home'; ui.sheet=null; render(); }
+ startTick();
+ installHistoricalResults();
+} catch(e) {
+ console.error('TouchXI startup',e);
+ const app=document.getElementById('app');
+ if(app){app.replaceChildren();const p=document.createElement('p');p.textContent='TouchXI could not open: '+e.message;const b=document.createElement('button');b.textContent='Retry';b.onclick=()=>location.reload();app.append(p,b);}
+}
 </script>
 
 <script>
