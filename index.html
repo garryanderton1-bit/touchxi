@@ -519,7 +519,7 @@ function assign(pids, slots, prev, gk){
 // Fair-share targets in minutes. Returns {targets, keeper}.
 function targetsFor(fx, pids){
   const F=formationById(fx.formationId), K=F.slots.length, full=fx.periods*fx.periodMins;
-  const prefs=fx.prefs||{}; const w=id=>({extra:1.65,more:1.3,less:0.8,limited:0.55}[prefs[id]]||1);
+  const prefs=fx.prefs||{}; const weights={extra:1.65,more:1.3,less:0.8,limited:0.55,normal:1}; const w=id=>weights[prefs[id]]??weights[player(id)?.timePriority]??1;
   const gks=pids.filter(id=>player(id).pos.includes('GK'));
   const keeper = gks.length===1 ? gks[0] : null;
   const t={}; let pool=pids.filter(id=>id!==keeper), mins=K*full;
@@ -880,7 +880,7 @@ function sheetPlayer(id){
   const bySeason={...(p.historicalGoalsBySeason||{})};history.forEach(f=>{const k=fixtureSeason(f);bySeason[k]=(bySeason[k]||0)+(f.scorers||[]).filter(g=>g.pid===id).length;});
   return `<h2>${id?'Edit player':'Add player'}</h2>
    <div class="grid2" style="grid-template-columns:1fr 90px"><label class="f">Name<input class="input" id="pName" value="${esc(p.name)}" autocomplete="off"></label><label class="f">Number<input class="input num" id="pNum" type="number" inputmode="numeric" value="${esc(p.number)}"></label></div>
-   <label class="f">1st position${sel(0)}</label><label class="f">2nd position${sel(1)}</label><label class="f">3rd position${sel(2)}</label><label class="f">4th position${sel(3)}</label><label class="f">5th position${sel(4)}</label>
+   <label class="f">1st position${sel(0)}</label><label class="f">2nd position${sel(1)}</label><label class="f">3rd position${sel(2)}</label><label class="f">4th position${sel(3)}</label><label class="f">5th position${sel(4)}</label><label class="f">Default playing-time priority<select class="input" id="pTimePriority">${Object.entries({normal:"Normal",extra:"Most time",more:"More time",less:"Less time",limited:"Limited"}).map(([k,l])=>`<option value="${k}" ${(p.timePriority||"normal")===k?"selected":""}>${l}</option>`).join("")}</select></label>
    <div class="card stack"><b>Player history</b><p class="small muted">Set when the player joined and, for former players, their final season. Leave blank if unknown.</p><div class="grid2"><label class="f">Starting season<select class="input" id="pStartSeason"><option value="">Unknown</option>${[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),p.startSeason].filter(Boolean))].sort().map(y=>'<option value="'+esc(y)+'" '+(p.startSeason===y?'selected':'')+'>'+esc(seasonLabel(y))+'</option>').join('')}</select></label><label class="f">Leaving season<select class="input" id="pLeavingSeason"><option value="">Still with team / unknown</option>${[...new Set([...seasonOptions(new Date().toISOString().slice(0,10)),p.leavingSeason].filter(Boolean))].sort().map(y=>'<option value="'+esc(y)+'" '+(p.leavingSeason===y?'selected':'')+'>'+esc(seasonLabel(y))+'</option>').join('')}</select></label></div></div>
    <label class="f">Notes<input class="input" id="pNotes" value="${esc(p.notes||'')}" placeholder="e.g. quick, left-footed"></label>
    <div class="card stack"><b>Player photo</b>${p.photo?'<img src="'+p.photo+'" alt="Player photo" style="width:100px;height:100px;object-fit:cover;border-radius:50%">':''}<input type="file" id="playerPhotoFile" accept="image/*" aria-label="Upload player photo"><span class="small muted">Photo stays in this device's app data and backups.</span></div>
@@ -983,7 +983,7 @@ function vFixture(){
   const pm=planMinutes(fx); const {targets}=targetsFor(fx,fitIds(fx));
   const full=fx.periods*fx.periodMins;
   const style=ui.styleTab||F.style;
-  const prefLabel={'':'Normal',extra:'Most time',more:'More time',less:'Less time',limited:'Limited',start:'Must start',must:'Must play',injured:'Injured',unavailable:'Unavailable'};
+  const prefLabel={'':'Squad default',normal:'Normal',extra:'Most time',more:'More time',less:'Less time',limited:'Limited',start:'Must start',must:'Must play',injured:'Injured',unavailable:'Unavailable'};
   return `<div class="stack">
    <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="${ui.fixtureReturn||'fixtures'}">‹ ${ui.fixtureReturn==='home'?'Home':'Schedule'}</button><button class="btn sm" data-a="editFx" data-id="${fx.id}">Edit details</button></div>
    <div><div class="eyebrow">${fmtDate(fx.date)}${fx.time?' · '+esc(fx.time):''} · ${fx.homeAway==='H'?'Home':fx.homeAway==='A'?'Away':'Neutral'}</div><h2 style="font-size:30px;margin-top:4px">v ${esc(fx.opponent)}</h2>
@@ -1023,7 +1023,7 @@ function vFixture(){
      <div class="scroll-x"><table class="mtab num"><thead><tr><th>Player</th><th style="width:40%">Minutes <span style="text-transform:none;letter-spacing:0;font-weight:500">(line = fair share)</span></th><th>Plan</th></tr></thead><tbody>
      ${fitIds(fx).sort((a,b)=>pm[b]-pm[a]).map(id=>{const p=player(id); const pct=Math.min(100,pm[id]/full*100), tg=Math.min(100,(targets[id]||0)/full*100);
        return `<tr><td>${esc(firstName(p))}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap"><div class="barw" style="flex:1"><i style="width:${pct}%"></i><b style="left:${tg}%"></b></div><span style="width:30px;text-align:right">${Math.round(pm[id])}</span></div></td>
-       <td><div class="dots">${fx.plan.blocks.map(b=>{const j=b.slots.indexOf(id);return `<span class="${j===0?'gk':j>0?'on':''}" title="${j>=0?F.slots[j].code:'bench'}"></span>`}).join('')}</div></td></tr>`;}).join('')}
+       <td><div style="display:flex;gap:3px;flex-wrap:wrap">${Array.from({length:fx.periods},(_,i)=>{const bs=fx.plan.blocks.slice(i*fx.windows,(i+1)*fx.windows),n=bs.filter(b=>b.slots.includes(id)).length;return `<span style="font-size:10px;font-weight:700;padding:3px 4px;border-radius:4px;background:${n===bs.length&&n?"#20563f":n?"#765923":"#35465a"};color:${n===bs.length&&n?"#c4f5d5":n?"#ffe3a0":"#c0cbd8"}">${periodShort(fx,i)}</span>`}).join("")}</div></td></tr>`;}).join('')}
      </tbody></table></div>
    </div>
    <button class="btn" data-a="manualResult" data-id="${fx.id}">Enter result and match report</button>
@@ -1730,8 +1730,8 @@ const A = {
     const historicalUnallocatedGoals=Math.max(0,parseInt(val('opening_unallocated'))||0);openingStats.goals=historicalUnallocatedGoals+Object.values(historicalGoalsBySeason).reduce((a,b)=>a+b,0);
     const historicalMotmBySeason={...(d.id?player(d.id).historicalMotmBySeason:{} )};document.querySelectorAll('[data-motm-season]').forEach(el=>{const n=Math.max(0,parseInt(el.value)||0);if(n)historicalMotmBySeason[el.dataset.motmSeason]=n;else delete historicalMotmBySeason[el.dataset.motmSeason];});
     const historicalUnallocatedMotm=Math.max(0,parseInt(val('motm_unallocated'))||0);openingStats.motm=historicalUnallocatedMotm+Object.values(historicalMotmBySeason).reduce((a,b)=>a+b,0);
-    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,notes:val('pNotes'),openingStats,historicalAppsBySeason,historicalUnallocatedApps,historicalGoalsBySeason,historicalUnallocatedGoals,historicalMotmBySeason,historicalUnallocatedMotm,startSeason,leavingSeason,active:player(d.id).active,sample:false}); }
-    else { const p={id:uid(),teamId:team().id,name,number:num,pos,notes:val('pNotes'),openingStats,historicalAppsBySeason,historicalUnallocatedApps,historicalGoalsBySeason,historicalUnallocatedGoals,historicalMotmBySeason,historicalUnallocatedMotm,startSeason,leavingSeason}; db.players.push(p);
+    if(d.id){ Object.assign(player(d.id),{name,number:num,pos,timePriority:val('pTimePriority')||'normal',notes:val('pNotes'),openingStats,historicalAppsBySeason,historicalUnallocatedApps,historicalGoalsBySeason,historicalUnallocatedGoals,historicalMotmBySeason,historicalUnallocatedMotm,startSeason,leavingSeason,active:player(d.id).active,sample:false}); }
+    else { const p={id:uid(),teamId:team().id,name,number:num,pos,timePriority:val('pTimePriority')||'normal',notes:val('pNotes'),openingStats,historicalAppsBySeason,historicalUnallocatedApps,historicalGoalsBySeason,historicalUnallocatedGoals,historicalMotmBySeason,historicalUnallocatedMotm,startSeason,leavingSeason}; db.players.push(p);
       fixtures().filter(f=>f.status!=='played'&&!f.match).forEach(f=>{f.available.push(p.id); f.plan=null;}); }
     ui.sheet=null; toast('Saved');
   },
