@@ -717,7 +717,7 @@ const ICON = {
   squad:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3l-5 3 2 4 2-1v12h10V9l2 1 2-4-5-3c0 2-2 3-4 3S8 5 8 3z"/></svg>',
   fixtures:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>',
   stats:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
-  team:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg>',
+  team:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 3h4l.6 2.5 2 .9 2.3-1.2 2.8 2.8-1.2 2.3.9 2 2.5.6v4l-2.5.6-.9 2 1.2 2.3-2.8 2.8-2.3-1.2-2 .9L14 27h-4l-.6-2.5-2-.9-2.3 1.2-2.8-2.8 1.2-2.3-.9-2L0 17v-4l2.5-.6.9-2L2.2 8.1 5 5.3l2.3 1.2 2-.9Z" transform="translate(2 -1) scale(.83)"/><circle cx="12" cy="11.5" r="3"/></svg>',
 };
 function applyTheme(){
   const t=team(), r=document.documentElement.style;
@@ -741,7 +741,7 @@ function render(){
   else if(ui.view==='fixture') body=vFixture();
   else if(ui.view==='stats') body=vStats();
   else if(ui.view==='team') body=vTeam();
-  const tabs=[['home','Home'],['squad','Squad'],['fixtures','Schedule'],['stats','Stats'],['team','Team']];
+  const tabs=[['home','Home'],['squad','Squad'],['fixtures','Schedule'],['stats','Stats'],['team','Settings']];
   const active = ui.view==='playerProfile'?'squad':['fixture','opponents','opponentDetail','history'].includes(ui.view)?'fixtures':ui.view;
   app.innerHTML = `
   <header class="bar"><div class="wrap">${badgeHtml(t)}<div class="grow"><div class="tname">${esc(t.name)}</div><div class="brand">TouchXI</div></div><img class="applogo" src="${APP_LOGO}" alt="TouchXI"></div></header>
@@ -777,6 +777,7 @@ function vHome(){
  </div>`;
 }
 /* ---------- Squad ---------- */
+function squadFormations(){const t=team();return `<div class="card stack"><div class="row between"><div class="eyebrow">Formations & tactics</div><button class="btn sm" data-a="toggleSquadFormations" aria-expanded="${!!ui.showSquadFormations}">${ui.showSquadFormations?"Hide":"Show"}</button></div>${ui.showSquadFormations?`<div class="eyebrow">Custom formations</div><p class="small muted">Save named formations for future matches (15-character name limit).</p><button class="btn sm primary" data-a="newCustomFormation">+ Create formation</button>${(db.customFormations||[]).filter(f=>f.teamId===t.id).map(f=>'<div class="row between"><span>'+esc(f.name)+' · '+f.format+'v'+f.format+' · '+esc(f.rows.join('-'))+'</span><button class="btn sm" data-a="editCustomFormation" data-id="'+f.id+'">Edit</button></div>').join('')}<div class="eyebrow">Default formation</div><label class="f">Used automatically for new fixtures<select class="input" data-a="defaultFormation"><option value="">Automatic (balanced)</option>${formationsFor(t.format).map(f=>`<option value="${f.id}" ${t.defaultFormationId===f.id?'selected':''}>${esc(f.name)} · ${f.style}</option>`).join('')}</select></label><p class="small muted">Changing this will not alter existing fixtures. Choose a new default if you change match format.</p>`:""}</div>`;}
 function vSquad(){
   const ps=squad();
   const former=db.players.filter(p=>p.teamId===team().id&&!isActivePlayer(p)).sort((a,b)=>a.name.localeCompare(b.name));
@@ -786,6 +787,7 @@ function vSquad(){
    <div class="row between"><div><div class="eyebrow">Team management</div><h2 style="margin:2px 0 0">Squad</h2></div><button class="btn primary" data-a="editPlayer">Add player</button></div>
    <div class="card stack"><div class="row between"><div class="eyebrow">Coaches · ${staff.length}</div><div class="row"><button class="btn sm" data-a="addCoach">+ Add</button><button class="btn sm" data-a="toggleCoaches">${ui.showCoaches?'Hide':'Show'}</button></div></div>${ui.showCoaches?'<div class="list">'+(staff.map(c=>'<button class="li" data-a="editCoach" data-id="'+c.id+'"><span class="main"><b>'+esc(c.name)+'</b><div class="small muted">'+esc(c.role||'Coach')+' · '+(c.qualifications||[]).length+' qualifications</div></span><span>›</span></button>').join('')||'<p class="small muted">No coaching staff yet.</p>')+'</div>':''}</div>
    <section class="card squad-roster"><div class="row between squad-heading"><div><div class="eyebrow">First team</div><strong>Current squad</strong></div><span class="muted small num">${ps.length} players</span></div><div class="list">${ps.map(p=>`<button class="li squad-player" data-a="openPlayerProfile" data-id="${p.id}"><span class="squad-number num">${p.number??'—'}</span><span class="squad-avatar">${p.photo?'<img src="'+esc(p.photo)+'" alt="">':esc(p.name.trim().split(/\s+/).slice(0,2).map(n=>n[0]).join('').toUpperCase())}</span><span class="main"><span class="squad-name">${esc(p.name)} ${p.sample?'<span class="pill ex">Example</span>':''}</span><span class="squad-positions">${(p.pos||[]).length?esc(p.pos.join(' · ')):'Position not set'}</span></span><span class="muted squad-chevron" aria-hidden="true">›</span></button>`).join('')||'<p class="muted">No players yet. Add your squad to start picking teams.</p>'}</div></section>
+   ${squadFormations()}
    <div class="card stack"><div class="row between"><div class="eyebrow">Player statistics</div><button class="btn sm" data-a="toggleSquadStats">${ui.showSquadStats?'Hide':'Show'}</button></div>${ui.showSquadStats?'<div class="list">'+top.map(r=>'<button class="li" data-a="openPlayerProfile" data-id="'+r.p.id+'"><span class="main"><b>'+esc(r.p.name)+'</b></span><span class="num">'+r.goals+' G · '+r.assists+' A</span></button>').join('')+'</div><button class="btn sm" data-a="nav" data-v="stats">Full statistics ›</button>':''}</div>
    ${former.length?'<div class="card stack"><div class="row between"><div class="eyebrow">Former players · '+former.length+'</div><button class="btn sm" data-a="toggleFormerPlayers" aria-expanded="'+!!ui.showFormerPlayers+'">'+(ui.showFormerPlayers?'Hide':'Show')+'</button></div>'+(ui.showFormerPlayers?'<p class="small muted">Archived players are excluded from the current squad. Tap to view or edit their history.</p><div class="list">'+former.map(p=>'<button class="li" data-a="openPlayerProfile" data-id="'+p.id+'"><div class="main"><div class="title">'+esc(p.name)+'</div><div class="small muted">'+esc(p.startSeason?seasonLabel(p.startSeason):'Start unknown')+' – '+esc(p.leavingSeason?seasonLabel(p.leavingSeason):'Leaving unknown')+'</div></div><span class="muted">›</span></button>').join('')+'</div>':'')+'</div>':''}
   </div>`;
@@ -1106,7 +1108,7 @@ function trendSvg(fxs){
 function vTeam(){
   const t=team();
   return `<div class="stack">
-   <h2>Team</h2>
+   <h2>Settings</h2>
 
    <div class="card stack">
      <div class="row">${badgeHtml(t,56)}<label class="btn sm">Upload badge<input type="file" accept="image/*" id="badgeFile" hidden></label>${t.badge?'<button class="btn sm ghost" data-a="clearBadge">Remove badge</button>':''}</div>
@@ -1120,8 +1122,6 @@ function vTeam(){
      <label class="f">Periods<select class="input" data-a="teamNum" data-k="periods">${[1,2,3,4].map(n=>`<option value="${n}" ${t.periods===n?'selected':''}>${n}</option>`).join('')}</select></label>
      <label class="f">Minutes<input class="input num" type="number" value="${t.periodMins}" data-a="teamNum" data-k="periodMins"></label></div>
    </div>
-   <div class="card stack"><div class="eyebrow">Custom formations</div><p class="small muted">Save named formations for future matches (15-character name limit).</p><button class="btn sm primary" data-a="newCustomFormation">+ Create formation</button>${(db.customFormations||[]).filter(f=>f.teamId===t.id).map(f=>'<div class="row between"><span>'+esc(f.name)+' · '+f.format+'v'+f.format+' · '+esc(f.rows.join('-'))+'</span><button class="btn sm" data-a="editCustomFormation" data-id="'+f.id+'">Edit</button></div>').join('')}</div>
-   <div class="card stack"><div class="eyebrow">Default formation</div><label class="f">Used automatically for new fixtures<select class="input" data-a="defaultFormation"><option value="">Automatic (balanced)</option>${formationsFor(t.format).map(f=>`<option value="${f.id}" ${t.defaultFormationId===f.id?'selected':''}>${esc(f.name)} · ${f.style}</option>`).join('')}</select></label><p class="small muted">Changing this will not alter existing fixtures. Choose a new default if you change match format.</p></div>
    <div class="card stack"><div class="eyebrow">Teams</div>
      <div class="list">${db.teams.filter(x=>!x.archived).map(x=>`<button class="li" data-a="switchTeam" data-id="${x.id}">${badgeHtml(x,34)}<div class="main"><div class="title">${esc(x.name)}</div><div class="small muted">${db.players.filter(p=>p.teamId===x.id).length} players</div></div>${x.id===t.id?'<span class="pill">Current</span>':''}</button>`).join('')}</div>
      <button class="btn" data-a="addTeam">Add another team</button>
@@ -1559,6 +1559,7 @@ const A = {
   editTeamHonour(d){ui.sheet={k:'teamHonour',id:d.id};},
   saveTeamHonour(){const t=team(),name=val('teamHonourName').trim();if(!name){toast('Enter an honour');return 'keep';}t.teamHonours=t.teamHonours||[];const x=t.teamHonours.find(h=>h.id===ui.sheet.id);const data={name,season:val('teamHonourSeason'),format:val('teamHonourFormat'),competition:val('teamHonourCompetition'),finish:val('teamHonourFinish'),style:val('teamHonourStyle'),outcome:val('teamHonourOutcome'),finalOpponent:val('teamHonourFinalOpponent').trim(),finalScore:val('teamHonourFinalScore').trim(),finalPenalties:val('teamHonourFinalPens').trim(),notes:val('teamHonourNotes'),playerIds:[...document.querySelectorAll('[data-honour-player]:checked')].map(el=>el.dataset.honourPlayer)};if(x)Object.assign(x,data);else t.teamHonours.push({id:uid(),...data});ui.sheet=null;toast('Honour saved');},
   deleteTeamHonour(){team().teamHonours=(team().teamHonours||[]).filter(x=>x.id!==ui.sheet.id);ui.sheet=null;},
+  toggleSquadFormations(){ui.showSquadFormations=!ui.showSquadFormations;},
   toggleCoaches(){ui.showCoaches=!ui.showCoaches;},
   addCoach(){ui.showCoaches=true;ui.sheet={k:'coach'};},
   editCoach(d){ui.sheet={k:'coach',id:d.id};},
