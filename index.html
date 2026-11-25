@@ -1107,7 +1107,7 @@ function vTeam(){
   const t=team();
   return `<div class="stack">
    <h2>Team</h2>
-   <div class="card"><div class="row between"><div class="eyebrow">Training</div><button class="btn sm" data-a="openAttendance">Open in Schedule</button></div></div>
+
    <div class="card stack">
      <div class="row">${badgeHtml(t,56)}<label class="btn sm">Upload badge<input type="file" accept="image/*" id="badgeFile" hidden></label>${t.badge?'<button class="btn sm ghost" data-a="clearBadge">Remove badge</button>':''}</div>
      <div class="grid2" style="grid-template-columns:1fr 90px"><label class="f">Team name<input class="input" id="tName" value="${esc(t.name)}" data-a="teamField" data-k="name"></label><label class="f">Initials<input class="input" id="tShort" maxlength="3" value="${esc(t.short||'')}" data-a="teamField" data-k="short"></label></div>
@@ -1123,7 +1123,7 @@ function vTeam(){
    <div class="card stack"><div class="eyebrow">Custom formations</div><p class="small muted">Save named formations for future matches (15-character name limit).</p><button class="btn sm primary" data-a="newCustomFormation">+ Create formation</button>${(db.customFormations||[]).filter(f=>f.teamId===t.id).map(f=>'<div class="row between"><span>'+esc(f.name)+' · '+f.format+'v'+f.format+' · '+esc(f.rows.join('-'))+'</span><button class="btn sm" data-a="editCustomFormation" data-id="'+f.id+'">Edit</button></div>').join('')}</div>
    <div class="card stack"><div class="eyebrow">Default formation</div><label class="f">Used automatically for new fixtures<select class="input" data-a="defaultFormation"><option value="">Automatic (balanced)</option>${formationsFor(t.format).map(f=>`<option value="${f.id}" ${t.defaultFormationId===f.id?'selected':''}>${esc(f.name)} · ${f.style}</option>`).join('')}</select></label><p class="small muted">Changing this will not alter existing fixtures. Choose a new default if you change match format.</p></div>
    <div class="card stack"><div class="eyebrow">Teams</div>
-     <div class="list">${db.teams.map(x=>`<button class="li" data-a="switchTeam" data-id="${x.id}">${badgeHtml(x,34)}<div class="main"><div class="title">${esc(x.name)}</div><div class="small muted">${db.players.filter(p=>p.teamId===x.id).length} players</div></div>${x.id===t.id?'<span class="pill">Current</span>':''}</button>`).join('')}</div>
+     <div class="list">${db.teams.filter(x=>!x.archived).map(x=>`<button class="li" data-a="switchTeam" data-id="${x.id}">${badgeHtml(x,34)}<div class="main"><div class="title">${esc(x.name)}</div><div class="small muted">${db.players.filter(p=>p.teamId===x.id).length} players</div></div>${x.id===t.id?'<span class="pill">Current</span>':''}</button>`).join('')}</div>
      <button class="btn" data-a="addTeam">Add another team</button>
    </div>
    <div class="card stack"><div class="row between"><div class="eyebrow">Match alerts</div><button class="btn sm" data-a="alertsSheet">Set up</button></div>
@@ -1132,6 +1132,7 @@ function vTeam(){
      <p class="small muted" style="margin:0">Your data is saved on this phone only. Copy a backup now and then, and keep it somewhere safe, such as a note or an email to yourself.</p>
      <div class="grid2"><button class="btn" data-a="backup">Copy backup</button><button class="btn" data-a="restoreSheet">Restore backup</button></div>
    </div>
+   <div class="card stack"><div class="eyebrow">Manage team</div><p class="small muted">Remove a team from your active list without deleting its records. Archived teams can be restored here. At least one active team must remain.</p><button class="btn danger" data-a="archiveTeam">Remove team (archive)</button>${db.teams.filter(x=>x.archived).map(x=>'<div class="row between"><span>'+esc(x.name)+'</span><button class="btn sm" data-a="recoverTeam" data-id="'+esc(x.id)+'">Restore team</button></div>').join('')}</div>
   </div>`;
 }
 
@@ -1803,6 +1804,8 @@ const A = {
     db.fixtures.forEach(f=>{ f.available=f.available.filter(id=>!ids.has(id)); if(f.status!=='played') f.plan=null; }); toast('Examples cleared'); },
   clearBadge(){ if(!confirm('Remove the club badge? Your team, players, fixtures and statistics will not be affected.'))return 'keep'; team().badge=null; },
   preset(d){ const [p,s,t]=d.c.split(','); Object.assign(team().colors,{primary:p,secondary:s,text:t}); },
+  archiveTeam(){const t=team(),other=db.teams.find(x=>x.id!==t.id&&!x.archived);if(!other){toast('Add another team before removing your only active team');return 'keep';}if(!confirm('Archive '+t.name+'? All records will be retained and can be restored.'))return 'keep';if(prompt('Type the team name to confirm:', '')!==t.name){toast('Team not removed');return 'keep';}t.archived=true;db.activeTeamId=other.id;ui.view='team';toast('Team archived');},
+  recoverTeam(d){const t=db.teams.find(x=>x.id===d.id);if(t){delete t.archived;toast('Team restored');}},
   switchTeam(d){ db.activeTeamId=d.id; ui.view='home'; },
   addTeam(){ ui.sheet={k:'team'}; },
   createTeam(){ const n=val('ntName').trim(); if(!n){ toast('Add a team name'); return 'keep'; } const t={id:uid(),name:n,short:n.split(/\s+/).map(w=>w[0]).join('').slice(0,2).toUpperCase(),badge:null,colors:{primary:'#C8102E',secondary:'#FFFFFF',text:'#FFFFFF'},format:7,periods:2,periodMins:25,windows:1,favs:[]}; db.teams.push(t); db.activeTeamId=t.id; ui.sheet=null; ui.view='team'; toast('Team created'); },
