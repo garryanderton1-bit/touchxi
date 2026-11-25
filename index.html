@@ -1315,6 +1315,16 @@ function renderSheet(){
     const saveButton=panel.querySelector('[data-a="savePlayer"]');
     if(saveButton){const footer=saveButton.parentElement;saveButton.className='btn primary sm sheet-close';header.appendChild(saveButton);footer.remove();}
   }
+  if(k==='teamHonour'){
+    const saveButton=panel.querySelector('[data-a="saveTeamHonour"]');
+    if(saveButton){
+      const footer=saveButton.parentElement;
+      saveButton.className='btn primary sm sheet-close';
+      close.replaceWith(saveButton);
+      const cancel=footer.querySelector('[data-a="closeSheet"]');
+      if(cancel){cancel.textContent='Cancel';footer.replaceWith(cancel);}else footer.remove();
+    }
+  }
   panel.prepend(header);panel.setAttribute('aria-labelledby','sheet-title');panel.scrollTop=scroll;
   if(k==='player')panel.dataset.initialPlayerFields=playerEditorSnapshot(panel);
 }
