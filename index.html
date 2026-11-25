@@ -534,7 +534,7 @@ function planFrom(fx, from, played, prev, respectLocks){
   const blocks=[];
   for(let b=from;b<B;b++){
     const old = fx.plan&&fx.plan.blocks&&fx.plan.blocks[b];
-    if(respectLocks && old && old.locked && old.slots.length===K && old.slots.filter(Boolean).length===Math.min(K,pids.length) && new Set(old.slots.filter(Boolean)).size===old.slots.filter(Boolean).length && old.slots.every(id=>!id||pids.includes(id)) && requiredForBlock(fx,b).filter(id=>pids.includes(id)).every(id=>old.slots.includes(id))){
+    if(respectLocks && old && old.locked && old.slots.length===K && old.slots.filter(Boolean).length===Math.min(K,pids.length) && new Set(old.slots.filter(Boolean)).size===old.slots.filter(Boolean).length && old.slots.every(id=>!id||pids.includes(id))){
       const sl=old.slots.map(id=>pids.includes(id)?id:null);
       blocks.push({slots:sl,locked:true}); sl.forEach(id=>{if(id)played[id]+=bm}); prev=sl; continue;
     }
@@ -599,7 +599,7 @@ function ruleConflicts(fx){
 }
 function safeReplan(fx){
  const errors=ruleConflicts(fx);
- if(errors.length){toast(errors[0]);return false;}
+ if(errors.length)toast(errors[0]);
  if(fx.match&&!fx.match.ended)replanLive(fx,fx.match);else autoPlan(fx,false);
  return true;
 }
@@ -1762,7 +1762,7 @@ const A = {
   nextPlanBlock(d){const q=ui.sheet,i=+d.b;if(i<q.first)return;q.block=i;q.slot=null;q.bench=null;},
   nextPlanSlot(d){const q=ui.sheet,j=+d.j,sl=q.draft[q.block].slots;if(q.bench){sl[j]=q.bench;q.bench=null;q.slot=null;q.draft[q.block].locked=true;rebalanceDraft(curFx(),curFx().match,q);}else if(q.slot!==null&&q.slot!==j){[sl[j],sl[q.slot]]=[sl[q.slot],sl[j]];q.slot=null;q.draft[q.block].locked=true;rebalanceDraft(curFx(),curFx().match,q);}else q.slot=q.slot===j?null:j;},
   nextPlanBench(d){const q=ui.sheet;if(q.slot!==null){q.draft[q.block].slots[q.slot]=d.id;q.draft[q.block].locked=true;q.slot=null;q.bench=null;rebalanceDraft(curFx(),curFx().match,q);}else q.bench=q.bench===d.id?null:d.id;},
-  saveNextPlan(){const f=curFx(),m=f.match,q=ui.sheet;if(q.first!==curBlock(f,m)+1){toast('Rotation window changed. Reopen planner.');ui.sheet=null;return;}for(let i=q.first;i<q.draft.length;i++){const ids=q.draft[i].slots.filter(Boolean);if(new Set(ids).size!==ids.length||ids.length!==Math.min(f.format,fitIds(f).length)||ids.some(id=>!fitIds(f).includes(id))||requiredForBlock(f,i).some(id=>fitIds(f).includes(id)&&!ids.includes(id))){toast('Check available and mandatory players in '+blockLabel(f,i));return 'keep';}}m.plan=q.draft;ui.sheet=null;toast('Rotation plan saved');},
+  saveNextPlan(){const f=curFx(),m=f.match,q=ui.sheet;if(q.first!==curBlock(f,m)+1){toast('Rotation window changed. Reopen planner.');ui.sheet=null;return;}for(let i=q.first;i<q.draft.length;i++){const ids=q.draft[i].slots.filter(Boolean);if(new Set(ids).size!==ids.length||ids.length!==Math.min(f.format,fitIds(f).length)||ids.some(id=>!fitIds(f).includes(id))){toast('Check available players in '+blockLabel(f,i));return 'keep';}}m.plan=q.draft;const warnings=q.draft.slice(q.first).some((b,i)=>requiredForBlock(f,q.first+i).some(id=>fitIds(f).includes(id)&&!b.slots.includes(id)));ui.sheet=null;toast(warnings?'Plan saved · Playing-time preference warning':'Rotation plan saved');},
   applyNext(){ const fx=curFx(), m=fx.match, b=curBlock(fx,m), nx=m.plan[b+1]; if(!nx) return;
     // the next block becomes the current lineup now; plan keeps following blocks
     setLineup(fx,m,[...nx.slots]); toast('Subs made'); },
