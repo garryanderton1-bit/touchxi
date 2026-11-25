@@ -393,6 +393,7 @@ function vOpponentDetail(){
  <h2>${esc(name)}</h2>
  <div class="card stack"><div class="eyebrow">Club details</div>
  <div><b>Ground address</b><div class="small muted" style="white-space:pre-wrap">${esc(o.address||'Not recorded')}</div></div>
+ ${mapsLink(o.address)}
  <div><b>Coach</b><div class="small muted">${esc(o.coach||'Not recorded')}</div></div>
  <div><b>Contact number</b><div class="small">${o.phone?`<a href="tel:${esc(o.phone.replace(/[^+0-9]/g,''))}">${esc(o.phone)}</a>`:'<span class="muted">Not recorded</span>'}</div></div>
  <div><b>Club notes</b><div class="small muted" style="white-space:pre-wrap">${esc(o.notes||'Not recorded')}</div></div></div>
@@ -928,6 +929,7 @@ function sheetFixture(id){
    <div class="grid2"><label class="f">Home / away<select class="input" id="fHA"><option value="H" ${f.homeAway==='H'?'selected':''}>Home</option><option value="A" ${f.homeAway==='A'?'selected':''}>Away</option><option value="N" ${f.homeAway==='N'?'selected':''}>Neutral</option></select></label><label class="f">Competition<input class="input" id="fComp" value="${esc(f.competition)}" list="compList"></label></div>
    <datalist id="compList">${[...new Set(['League','Cup','Friendly','Tournament',...fixtures().map(x=>x.competition).filter(Boolean)])].map(o=>`<option value="${esc(o)}">`).join('')}</datalist>
    <div class="grid2"><label class="f">Venue<input class="input" id="fVenue" value="${esc(f.venue)}"></label><label class="f">Pitch type<select class="input" id="fPitch"><option value="">Not set</option>${PITCHES.map(x=>`<option ${f.pitch===x?'selected':''}>${x}</option>`).join('')}</select></label></div>
+   <label class="f">Saved home venue<select class="input" id="fHomeVenue">${venueOptions(f.homeVenueId)}</select></label>
    <div class="grid3"><label class="f">Format<select class="input" id="fFmt">${FORMATS.map(n=>`<option value="${n}" ${f.format===n?'selected':''}>${n}v${n}</option>`).join('')}</select></label>
      <label class="f">Periods<select class="input" id="fPer">${[1,2,3,4].map(n=>`<option value="${n}" ${f.periods===n?'selected':''}>${n===1?'1':n===2?'2 halves':n===4?'4 quarters':n+' thirds'}</option>`).join('')}</select></label>
      <label class="f">Minutes each<input class="input num" type="number" inputmode="numeric" id="fMins" value="${f.periodMins}"></label></div>
@@ -967,6 +969,7 @@ function vFixture(){
 
    <button class="btn primary big" data-a="openMatch" data-id="${fx.id}">${fx.match?'Resume matchday':'Go to matchday'}</button>
    <button class="btn" data-a="openTactical" data-id="${fx.id}">Opposition insight</button>
+   ${fixtureVenueCard(fx)}
    <div class="card stack"><div class="row between"><div class="eyebrow">Available · <span class="num">${fitIds(fx).length}</span> of ${ps.length}</div><div class="row" style="gap:6px"><button class="btn sm" data-a="availAll">All</button><button class="btn sm" data-a="availNone">None</button></div></div>
      <div class="row between" style="flex-wrap:wrap"><span class="small muted">${confirmed?`Matchday squad confirmed · ${fitIds(fx).length} selected`:`Select who is available, then confirm the matchday squad`}</span><button class="btn ${confirmed?'':'primary'} sm" data-a="confirmSquad">${confirmed?'Edit availability':'Confirm matchday squad'}</button></div>
      <div class="list">${visiblePs.map(p=>{const on=fx.available.includes(p.id); const inj=(fx.injured||[]).includes(p.id); const pr=inj?'injured':((fx.prefs||{})[p.id]||(!on?'unavailable':''));
@@ -1105,10 +1108,24 @@ function trendSvg(fxs){
 }
 
 /* ---------- Team settings ---------- */
+function homeVenues(){return team().homeVenues||[];}
+function mapsUrl(a){return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(a);}
+function mapsLink(a){return a?'<a class="btn sm" target="_blank" rel="noopener noreferrer" href="'+esc(mapsUrl(a))+'">Open in Google Maps</a>':'';}
+function venueOptions(id){return '<option value="">Select venue</option>'+homeVenues().map(v=>'<option value="'+esc(v.id)+'" '+(v.id===id?'selected':'')+'>'+esc(v.name)+'</option>').join('');}
+function venuesCard(){return `<div class="card stack"><div class="row between"><div class="eyebrow">Home venues</div><button class="btn sm" data-a="editVenue">+ Add venue</button></div>${homeVenues().map(v=>`<div class="row between"><div class="grow"><b>${esc(v.name)}</b><div class="small muted">${esc(v.address)}</div></div><button class="btn sm" data-a="editVenue" data-id="${v.id}">Edit</button></div>`).join('')||'<p class="small muted">Save your home grounds and visitor information.</p>'}<button class="btn" data-a="visitorSheet">Share visitor information</button></div>`;}
+const venueFields=[['name','Venue name'],['address','Address and postcode'],['rules','Ground rules'],['parking','Parking'],['toilets','Toilets'],['tea','Tea stall'],['info','Other information'],['contact','Public coach contact details']];
+function sheetVenue(){const v=homeVenues().find(x=>x.id===ui.sheet.id)||{};return '<h2>Home venue</h2>'+venueFields.map(([k,l])=>'<label class="f">'+l+'<textarea class="input" id="venue_'+k+'" rows="'+(k==='rules'?3:1)+'">'+esc(v[k]||'')+'</textarea></label>').join('')+'<div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveVenue">Save venue</button></div>';}
+function fixtureVenueCard(f){if(f.homeAway!=='H')return mapsLink(opponentRecord(f.opponent)?.address||'');const v=homeVenues().find(x=>x.id===f.homeVenueId);return `<div class="card stack"><div class="eyebrow">Home venue</div><div>${esc(v?.name||'No venue selected')}</div>${mapsLink(v?.address)}<button class="btn" data-a="visitorSheet" data-fx="${f.id}">Select venue / share visitor information</button></div>`;}
+function visitorParts(){const q=ui.sheet,f=q.fx?fixture(q.fx):null,v=homeVenues().find(x=>x.id===q.venue);if(!v)return null;return {v,f,lines:[team().name,'MATCHDAY VISITOR INFORMATION',f?'vs '+f.opponent+' · '+fmtDate(f.date)+(f.time?' · Kick-off '+f.time:''):'','Welcome! We look forward to seeing you.',v.name,v.address,...venueFields.slice(2).filter(([k])=>v[k]).map(([k,l])=>l+': '+v[k]),'Thank you and enjoy the game.'].filter(Boolean)};}
+function visitorText(){const p=visitorParts();return p?p.lines.join('\n\n')+'\n\nGoogle Maps: '+mapsUrl(p.v.address):'';}
+function sheetVisitor(){const p=visitorParts(),phone=p?.f?opponentRecord(p.f.opponent)?.phone:'';return `<h2>Visitor information</h2><label class="f">Home venue<select class="input" id="visitorVenue">${venueOptions(ui.sheet.venue)}</select></label><button class="btn primary" data-a="selectVisitorVenue">Select venue / preview</button>${p?`<div class="card stack" id="visitorPreview">${badgeHtml(team(),56)}${p.lines.map((l,i)=>i===0?'<h2>'+esc(l)+'</h2>':'<div style="white-space:pre-wrap">'+esc(l)+'</div>').join('')}${mapsLink(p.v.address)}</div><textarea class="input" id="visitorCopy" readonly>${esc(visitorText())}</textarea><div class="grid2"><button class="btn" data-a="copyVisitor">Copy text</button><button class="btn primary" data-a="shareVisitor">Share sheet</button></div>${phone?'<a class="btn" href="sms:'+esc(phone.replace(/[^+0-9]/g,''))+'&body='+encodeURIComponent(visitorText())+'">Text opposition coach</a>':''}<button class="btn" data-a="printVisitor">Print / save PDF</button>`:''}<button class="btn" data-a="closeSheet">Done</button>`;}
+function visitorCanvas(){const p=visitorParts();if(!p)return null;const c=document.createElement('canvas');c.width=1000;c.height=1414;const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,1000,1414);x.fillStyle='#101e30';x.fillRect(0,0,1000,200);x.fillStyle='#fff';x.font='bold 34px Arial';x.fillText(team().name,45,65,910);x.fillStyle='#dfbd76';x.font='bold 25px Arial';x.fillText('MATCHDAY VISITOR INFORMATION',45,115,910);let y=245; x.fillStyle='#101e30';x.font='24px Arial';for(const l of p.lines.slice(2)){for(const para of l.split('\n')){let line='';for(const word of para.split(' ')){const next=line?line+' '+word:word;if(x.measureText(next).width>900&&line){x.fillText(line,45,y,910);y+=33;line=word;}else line=next;}x.fillText(line,45,y,910);y+=33;}y+=18;}if(y>1330)return null;x.font='20px Arial';x.fillText('Google Maps: '+p.v.address.replace(/\n/g,' '),45,y,910);return c;}
+
 function vTeam(){
   const t=team();
   return `<div class="stack">
    <h2>Settings</h2>
+   ${venuesCard()}
 
    <div class="card stack">
      <div class="row">${badgeHtml(t,56)}<label class="btn sm">Upload badge<input type="file" accept="image/*" id="badgeFile" hidden></label>${t.badge?'<button class="btn sm ghost" data-a="clearBadge">Remove badge</button>':''}</div>
@@ -1290,6 +1307,8 @@ function renderSheet(){
   if(!s){ s=document.createElement('div'); s.id='sheet'; s.className='scrim'; document.body.appendChild(s); }
   let h='';
   const k=ui.sheet.k;
+  if(k==='venue') h=sheetVenue();
+  if(k==='visitor') h=sheetVisitor();
   if(k==='player') h=sheetPlayer(ui.sheet.id);
   if(k==='coach') h=sheetCoach();
   if(k==='managerTask') h=sheetManagerTask();
@@ -1493,6 +1512,14 @@ function previewCSV(text){
 /* ============================ Actions ============================ */
 function curFx(){ return fixture(ui.fxId); }
 const A = {
+ editVenue(d){ui.sheet={k:'venue',id:d.id};},
+ saveVenue(){const v=Object.fromEntries(venueFields.map(([k])=>[k,val('venue_'+k).trim()]));if(!v.name||!v.address){toast('Enter venue name and address');return 'keep';}const t=team();t.homeVenues=t.homeVenues||[];const old=t.homeVenues.find(x=>x.id===ui.sheet.id);if(old)Object.assign(old,v);else t.homeVenues.push({id:uid(),...v});ui.sheet=null;toast('Venue saved');},
+ visitorSheet(d){const f=d.fx?fixture(d.fx):null;ui.sheet={k:'visitor',fx:d.fx,venue:f?.homeVenueId||''};},
+ selectVisitorVenue(){const id=val('visitorVenue');if(!homeVenues().some(v=>v.id===id)){toast('Select a saved venue');return 'keep';}ui.sheet.venue=id;const f=ui.sheet.fx?fixture(ui.sheet.fx):null;if(f){f.homeVenueId=id;f.venue=homeVenues().find(v=>v.id===id).name;}save();},
+ copyVisitor(){const a=document.getElementById('visitorCopy');if(navigator.clipboard)navigator.clipboard.writeText(visitorText()).then(()=>toast('Copied'),()=>{a.select();});else a.select();return 'keep';},
+ shareVisitor(){const c=visitorCanvas(),txt=visitorText();if(!navigator.share){toast('Sharing unavailable. Use Copy text or Print / save PDF.');return 'keep';}if(!c){navigator.share({text:txt}).catch(()=>{});return 'keep';}c.toBlob(b=>{const file=new File([b],'visitor-information.png',{type:'image/png'});const data={files:[file],text:txt};navigator.share(navigator.canShare?.(data)?data:{text:txt}).catch(()=>{});});return 'keep';},
+ printVisitor(){const p=visitorParts();if(!p)return 'keep';const w=window.open('','_blank');if(!w){toast('Allow pop-ups to print');return 'keep';}w.document.write('<html><head><title>Visitor information</title><style>@page{size:A4;margin:15mm}body{font:16px Arial;color:#101e30}h1{background:#101e30;color:white;padding:20px}p{white-space:pre-wrap}</style></head><body><h1>'+esc(team().name)+'</h1>'+p.lines.slice(1).map(l=>'<p>'+esc(l)+'</p>').join('')+'<a href="'+esc(mapsUrl(p.v.address))+'">Google Maps</a></body></html>');w.document.close();w.print();return 'keep';},
+
   openTactical(d){const f=fixture(d.id||ui.fxId);if(!f)return 'keep';const last=f.currentOpposition?{...f.currentOpposition,oppSlots:f.currentOpposition.slots}:(f.tactical||[]).slice(-1)[0];ui.sheet={k:'tactical',id:f.id,board:last?.board?.map(p=>({...p}))||null,boardKey:last?.boardKey,theirs:last?.theirs||'',oppSlots:last?.oppSlots||null,oppName:last?.oppName||'',oppLibraryId:last?.oppLibraryId||null,oppCustom:!!last?.oppSlots,customOppRows:last?.theirs||'',customOppSlots:last?.oppSlots?.map(p=>({...p}))||null,tags:[]};},
   oppSelect(d){const q=ui.sheet;tacticalDraft();const f=fixture(q.id),saved=oppLibrary(f).find(x=>'saved:'+x.id===d.value);q.oppLibraryId=saved?.id||null;q.oppName=saved?.name||'';q.oppCustom=!!saved||d.value==='other';q.oppSlots=saved?.slots?.map(p=>({...p}))||null;q.theirs=saved?.rows||(q.oppCustom?'':d.value);q.customOppRows=saved?.rows||'';q.generatedOppRows=saved?.rows||'';q.customOppSlots=saved?.slots?.map(p=>({...p}))||null;q.oppRoleIndex=1;q.board=null;q.boardKey=null;},
   oppGenerate(){tacticalDraft();const q=ui.sheet,f=fixture(q.id),rows=tacticalRows(q.customOppRows,f.format);if(!rows){toast('Goalkeeper + exactly '+(f.format-1)+' outfield players required');return 'keep';}q.customOppSlots=makeCustomSlots(rows);q.generatedOppRows=q.customOppRows;q.theirs='';q.oppSlots=null;},
@@ -1662,7 +1689,7 @@ const A = {
   delPlayer(d){ player(d.id).active=false; fixtures().forEach(f=>{ if(f.status!=='played'&&!f.match){ f.available=f.available.filter(x=>x!==d.id); f.plan=null; } }); ui.sheet=null; ui.confirm=null; toast('Player archived; historical stats preserved'); },
   saveFx(d){
     const opp=val('fOpp').trim(); if(!opp){ toast('Add the opponent'); return 'keep'; }
-    const o={opponent:opp,date:val('fDate'),season:val('fSeason'),time:val('fTime'),homeAway:val('fHA'),competition:val('fComp'),venue:val('fVenue'),pitch:val('fPitch'),format:+val('fFmt'),periods:+val('fPer'),periodMins:Math.max(1,+val('fMins')||10),windows:+val('fWin'),allowExtraTime:document.getElementById('fAllowET').checked,allowPenalties:document.getElementById('fAllowPens').checked};
+    const o={opponent:opp,date:val('fDate'),season:val('fSeason'),time:val('fTime'),homeAway:val('fHA'),competition:val('fComp'),homeVenueId:val('fHA')==='H'?val('fHomeVenue'):'',venue:(val('fHA')==='H'&&homeVenues().find(v=>v.id===val('fHomeVenue'))?.name)||val('fVenue'),pitch:val('fPitch'),format:+val('fFmt'),periods:+val('fPer'),periodMins:Math.max(1,+val('fMins')||10),windows:+val('fWin'),allowExtraTime:document.getElementById('fAllowET').checked,allowPenalties:document.getElementById('fAllowPens').checked};
     if(d.id){ const f=fixture(d.id); const changed=f.format!==o.format||f.periods!==o.periods||f.windows!==o.windows||f.periodMins!==o.periodMins; Object.assign(f,o,{sample:false}); if(changed&&!f.match) f.plan=null; }
     else { const f=Object.assign({id:uid(),teamId:team().id,available:squad().map(p=>p.id),prefs:{},formationId:formationById(team().defaultFormationId)?.format===o.format?team().defaultFormationId:null,plan:null,match:null,score:null,scorers:[],status:'upcoming'},o); db.fixtures.push(f); ui.view='fixture'; ui.fxId=f.id; ui.block=0; }
     rememberOpponent(opp);ui.sheet=null; toast('Fixture saved');
