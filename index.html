@@ -327,7 +327,7 @@ function importUpcomingSheet58(){
   IMPORTED_UPCOMING_FIXTURES.forEach(([sourceId,date,opponent,homeAway])=>{
     if(existing.has(sourceId)) return;
     if(opponent!=='Opponent TBC'&&db.fixtures.some(f=>f.teamId===t.id&&f.date===date&&(f.opponent||'').trim().toLowerCase()===opponent.toLowerCase())) return;
-    db.fixtures.push({id:uid(),sourceId,teamId:t.id,date,time:'',opponent,venue:'',homeAway,competition:'League',pitch:'',format:9,periods:t.periods||4,periodMins:t.periodMins||15,windows:t.windows||1,available:db.players.filter(p=>p.teamId===t.id&&p.active!==false).map(p=>p.id),prefs:{},formationId:null,plan:null,match:null,score:null,scorers:[],motm:null,star:null,status:'upcoming',imported:true});
+    db.fixtures.push({id:uid(),sourceId,teamId:t.id,date,time:'',opponent,venue:'',homeAway,competition:'League',pitch:'',format:9,periods:t.periods||4,periodMins:t.periodMins||15,windows:t.windows||1,available:db.players.filter(p=>p.teamId===t.id&&isActivePlayer(p)).map(p=>p.id),prefs:{},formationId:null,plan:null,match:null,score:null,scorers:[],motm:null,star:null,status:'upcoming',imported:true});
   });
 }
 const REAL_FIXTURES=[];
@@ -373,7 +373,8 @@ function save(){
   try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); localStorage.setItem(STORE_KEY+'.ui', JSON.stringify({view:ui.view,fxId:ui.fxId})); }catch(e){}
 }
 const team = () => db.teams.find(t=>t.id===db.activeTeamId) || db.teams[0];
-const squad = () => db.players.filter(p=>p.teamId===team().id&&p.active!==false).sort((a,b)=>(a.number||99)-(b.number||99));
+function isActivePlayer(p){return !!p&&p.active!==false&&(!p.leavingSeason||canonicalSeason(p.leavingSeason)>=season(new Date().toISOString().slice(0,10)));}
+const squad = () => db.players.filter(p=>p.teamId===team().id&&isActivePlayer(p)).sort((a,b)=>(a.number||99)-(b.number||99));
 const player = id => db.players.find(p=>p.id===id);
 const fixtures = () => db.fixtures.filter(f=>f.teamId===team().id);
 const fixture = id => db.fixtures.find(f=>f.id===id);
@@ -414,7 +415,7 @@ function sheetOpponent(){
 }
 function sheetCoachingNotes(){const f=fixture(ui.sheet.id),n=f.coachingNotes||{};return `<h2>Coaching notes · ${esc(f.opponent)}</h2><label class="f">What went well<textarea class="input" id="noteGood" rows="3">${esc(n.good||'')}</textarea></label><label class="f">What needs improving<textarea class="input" id="noteImprove" rows="3">${esc(n.improve||'')}</textarea></label><label class="f">Focus for next training<textarea class="input" id="noteTraining" rows="3">${esc(n.training||'')}</textarea></label><div class="grid2"><button class="btn" data-a="closeSheet">Cancel</button><button class="btn primary" data-a="saveNotes">Save notes</button></div>`;}
 
-const fitIds = fx => fx.available.filter(id=>player(id)&&!(fx.injured||[]).includes(id)&&fx.prefs?.[id]!=='unavailable');
+const fitIds = fx => fx.available.filter(id=>player(id)&&(fx.status==='played'||fx.match||isActivePlayer(player(id)))&&!(fx.injured||[]).includes(id)&&fx.prefs?.[id]!=='unavailable');
 function attendanceStatus(f,pid){if(f.status!=='played'||f.imported||!f.score)return null;if((Array.isArray(f.matchSquad)?f.matchSquad:(f.squadConfirmed?fitIds(f):[])).includes(pid)||f.match?.stints?.some(x=>x.pid===pid&&((x.to??f.match.totalSec??0)>x.from)))return 'Played';if((f.injured||[]).includes(pid))return 'Injured';if(f.prefs?.[pid]==='unavailable')return 'Unavailable';if(!f.available?.includes(pid))return 'Not selected';return 'Available but unused';}
 function attendanceRows(pid){return fixtures().filter(f=>f.status==='played'&&!f.imported&&f.score&&f.attendanceTracked!==false).sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(f=>({f,status:attendanceStatus(f,pid)})).filter(x=>x.status);}
 
@@ -777,7 +778,7 @@ function vHome(){
 /* ---------- Squad ---------- */
 function vSquad(){
   const ps=squad();
-  const former=db.players.filter(p=>p.teamId===team().id&&p.active===false).sort((a,b)=>a.name.localeCompare(b.name));
+  const former=db.players.filter(p=>p.teamId===team().id&&!isActivePlayer(p)).sort((a,b)=>a.name.localeCompare(b.name));
   const staff=team().coachingStaff||[];
   const top=computeStats({}).players.filter(r=>r.goals||r.assists).sort((a,b)=>b.goals-a.goals||b.assists-a.assists).slice(0,5);
   return `<div class="stack">
@@ -804,7 +805,7 @@ function vPlayerProfile(){
  const photo=p.photo?'<img src="'+p.photo+'" alt="" style="width:110px;height:110px;border-radius:50%;object-fit:cover">':'<div class="shirt" style="width:110px;height:110px;border-radius:50%;font-size:42px">'+(p.number??'—')+'</div>';
  return `<div class="stack">
  <div class="row between"><button class="btn ghost sm" data-a="nav" data-v="squad">‹ Squad</button><button class="btn primary sm" data-a="editPlayer" data-id="${p.id}">Edit profile</button></div>
- <div class="card"><div class="row" style="align-items:center;gap:18px">${photo}<div><h2>${esc(p.name)}</h2><div class="muted">#${p.number??'—'} · ${esc((p.pos||[]).join(' / ')||'Position not set')}</div><span class="pill">${p.active===false?'Former player':'Active squad'}</span></div></div></div>
+ <div class="card"><div class="row" style="align-items:center;gap:18px">${photo}<div><h2>${esc(p.name)}</h2><div class="muted">#${p.number??'—'} · ${esc((p.pos||[]).join(' / ')||'Position not set')}</div><span class="pill">${!isActivePlayer(p)?'Former player':'Active squad'}</span></div></div></div>
  <div class="card"><div class="eyebrow">Time with the team</div><div style="margin-top:6px">${esc(p.startSeason?seasonLabel(p.startSeason):'Starting season unknown')} – ${esc(p.leavingSeason?seasonLabel(p.leavingSeason):'Present')}</div></div>
  <div class="card stack"><div class="row between"><div class="eyebrow">Career statistics</div><button class="btn sm primary" data-a="editCareerGoals" data-id="${p.id}">Edit goals</button></div><div class="grid2">${[['Appearances',career?.apps||0,'seasonBreakdown'],['Goals',career?.goals||0,'seasonBreakdown'],['Assists',career?.assists||0,'seasonBreakdown'],['POTM',career?.motm||0,'seasonBreakdown'],['Awards',(p.honours||[]).filter(h=>h.type!=='Trophy').length,'awardsHonours'],['Honours',(p.honours||[]).filter(h=>h.type==='Trophy').length,'awardsHonours']].map(([k,v,target])=>'<a href="#'+target+'" style="display:block;padding:12px;background:var(--surface-2);border-radius:10px;color:inherit;text-decoration:none" aria-label="View '+k+' details"><div class="stat-n num">'+v+'</div><div class="small muted">'+k+' ›</div></a>').join('')}</div><p class="small muted">Career totals combine opening records and completed fixtures. Tap a statistic for details.</p></div>
  <div class="card stack" id="seasonBreakdown"><div class="eyebrow">Season-by-season · historical + tracked</div>${summary.length?'<div class="scroll-x"><table class="mtab"><thead><tr><th>Season</th><th>Apps</th><th>Goals</th><th>Assists</th><th>MOTM</th></tr></thead><tbody>'+summary.map(r=>'<tr><td>'+esc(seasonLabel(r.y))+'</td><td>'+r.apps+'</td><td>'+r.goals+'</td><td>'+r.assists+'</td><td>'+r.motm+'</td></tr>').join('')+'</tbody></table></div>':'<p class="small muted">Season records will build as you complete and record new matches. Allocate historical goals by season in Edit profile.</p>'}</div>
@@ -1058,7 +1059,7 @@ function vStats(){
    <div class="card stack stats-players"><div class="row between"><div class="eyebrow">Player leaderboard</div><span class="small muted">Select a statistic</span></div>
     <div class="stats-leader-tabs" role="group" aria-label="Player statistic"><button type="button" class="stats-leader-tab active" data-stat="goals">Goals</button><button type="button" class="stats-leader-tab" data-stat="apps">Apps</button><button type="button" class="stats-leader-tab" data-stat="assists">Assists</button><button type="button" class="stats-leader-tab" data-stat="motm">MOTM</button><button type="button" class="stats-leader-tab" data-stat="min">Minutes</button></div>
     <div class="stats-leader-list" data-leaderboard>
-     ${rows.map(r=>`<div class="stats-leader-row" data-player-name="${esc(r.p.name)}" data-goals="${r.goals}" data-apps="${r.apps}" data-assists="${r.assists}" data-motm="${r.motm}" data-min="${Math.round(r.min)}"><span class="stats-leader-rank"></span><span class="stats-leader-name">${esc(r.p.name)}${r.p.active===false?' <small>(former)</small>':''}</span><strong class="stats-leader-value">${r.goals}</strong></div>`).join('')}
+     ${rows.map(r=>`<div class="stats-leader-row" data-player-name="${esc(r.p.name)}" data-goals="${r.goals}" data-apps="${r.apps}" data-assists="${r.assists}" data-motm="${r.motm}" data-min="${Math.round(r.min)}"><span class="stats-leader-rank"></span><span class="stats-leader-name">${esc(r.p.name)}${!isActivePlayer(r.p)?' <small>(former)</small>':''}</span><strong class="stats-leader-value">${r.goals}</strong></div>`).join('')}
     </div>
     <p class="small muted">Historical opening totals and recorded match statistics are included where available. Check or edit figures in player profiles.</p>
    </div>
