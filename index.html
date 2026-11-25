@@ -1201,11 +1201,11 @@ function seasonSettingsCard(t){const current=parseInt(season(new Date().toISOStr
 function vTeam(){
   const t=team();
   return `<div class="stack">
-   <h2>Settings</h2>
-   <div class="card stack"><div class="eyebrow">Rotation & playing time</div><label class="row between"><span><b>Fair playing time</b><div class="small muted">Minimum 50% for available, fit players</div></span><input type="checkbox" data-a="fairPlayingTime" ${fairTimeEnabled()?'checked':''}></label><div class="small muted">${fairTimeEnabled()?'Fair allocation and advisory warnings enabled.':'Competitive allocation: priority and ability guide minutes without a minimum.'} Existing plans are retained until rebuilt.</div></div>
+   <h2>Settings</h2><nav aria-label="Settings shortcuts" style="display:flex;flex-wrap:wrap;gap:6px"><a class="btn sm" href="#settings-match">Match</a><a class="btn sm" href="#settings-team">Team</a><a class="btn sm" href="#settings-backup">Backup</a></nav>
+   <div id="settings-match" style="scroll-margin-top:90px" class="card stack"><div class="eyebrow">Rotation & playing time</div><label class="row between"><span><b>Fair playing time</b><div class="small muted">Minimum 50% for available, fit players</div></span><input type="checkbox" data-a="fairPlayingTime" ${fairTimeEnabled()?'checked':''}></label><div class="small muted">${fairTimeEnabled()?'Fair allocation and advisory warnings enabled.':'Competitive allocation: priority and ability guide minutes without a minimum.'} Existing plans are retained until rebuilt.</div></div>
    ${venuesCard()}
 
-   <div class="card stack">
+   <div id="settings-team" style="scroll-margin-top:90px" class="card stack">
      <div class="eyebrow">Team identity & appearance</div><div class="row">${badgeHtml(t,56)}<label class="btn sm">Upload badge<input type="file" accept="image/*" id="badgeFile" hidden></label>${t.badge?'<button class="btn sm ghost" data-a="clearBadge">Remove badge</button>':''}</div>
      <div class="grid2" style="grid-template-columns:1fr 90px"><label class="f">Team name<input class="input" id="tName" value="${esc(t.name)}" data-a="teamField" data-k="name"></label><label class="f">Initials<input class="input" id="tShort" maxlength="3" value="${esc(t.short||'')}" data-a="teamField" data-k="short"></label></div>
      <div class="row" style="gap:16px">${[['primary','Primary'],['secondary','Accent'],['text','Text on primary']].map(([k,l])=>`<label class="f" style="align-items:center">${l}<span class="swatch"><input type="color" value="${t.colors[k]}" data-a="color" data-k="${k}"></span></label>`).join('')}</div>
@@ -1223,9 +1223,9 @@ function vTeam(){
    </div>
    <div class="card stack"><div class="row between"><div class="eyebrow">Match alerts</div><button class="btn sm" data-a="alertsSheet">Set up</button></div>
      <p class="small muted" style="margin:0">${(()=>{const c=alertCfg(); const on=[c.periodEnd?'end of each period':'',c.warn?c.warn+' min warning':'',...c.custom.map(a=>'at '+a.min+' min')].filter(Boolean); return on.length?'On: '+on.join(', ')+'.':'All alerts are off.';})()}</p></div>
-   <div class="card stack"><div class="eyebrow">Backup</div>
+   <div id="settings-backup" style="scroll-margin-top:90px" class="card stack"><div class="eyebrow">Backup & recovery</div>
      <p class="small muted" style="margin:0">Your data is saved on this device. Download a full backup regularly and keep it in a private iCloud Drive folder.</p>
-     <button class="btn primary" data-a="cloudAccount">Account &amp; cloud backup</button><button class="btn primary" data-a="downloadBackup">Download full backup</button><div class="grid2"><button class="btn" data-a="backup">Copy backup</button><button class="btn" data-a="restoreSheet">Restore backup</button></div>
+     <button class="btn primary" data-a="cloudAccount">Account &amp; cloud backup</button><button class="btn" data-a="downloadBackup">Download full backup</button><div class="grid2"><button class="btn" data-a="backup">Copy backup</button><button class="btn" data-a="restoreSheet">Restore backup</button></div>
    </div>
    <div class="card stack"><div class="eyebrow">Manage team</div><p class="small muted">Remove a team from your active list without deleting its records. Archived teams can be restored here. At least one active team must remain.</p><button class="btn danger" data-a="archiveTeam">Remove team (archive)</button>${db.teams.filter(x=>x.archived).map(x=>'<div class="row between"><span>'+esc(x.name)+'</span><button class="btn sm" data-a="recoverTeam" data-id="'+esc(x.id)+'">Restore team</button></div>').join('')}</div>
   </div>`;
