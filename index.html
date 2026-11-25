@@ -520,7 +520,7 @@ function assign(pids, slots, prev, gk){
 function targetsFor(fx, pids){
   const F=formationById(fx.formationId), K=F.slots.length, full=fx.periods*fx.periodMins;
   const prefs=fx.prefs||{}; const w=id=>({extra:1.65,more:1.3,less:0.8,limited:0.55}[prefs[id]]||1);
-  const gks=pids.filter(id=>player(id).pos[0]==='GK');
+  const gks=pids.filter(id=>player(id).pos.includes('GK'));
   const keeper = gks.length===1 ? gks[0] : null;
   const t={}; let pool=pids.filter(id=>id!==keeper), mins=K*full;
   if(keeper){ t[keeper]=full; mins-=full; }
@@ -560,6 +560,7 @@ function planFrom(fx, from, played, prev, respectLocks){
         let s=(targets[id]-played[id]);
         if(prev && !prev.includes(id) && b>from-1 && b>0) s+=bm*0.6;          // sat out last block
         if(mandatory.includes(id)) s+=bm*(B+2);
+        if(b===0&&id===fx.captainId)s+=bm*(B+3);
         if(prefs[id]==='limited' && played[id]+bm>targets[id]+bm*0.25) s-=bm*0.8;
         return s;
       };
@@ -595,6 +596,7 @@ function pickGk(pids,played,targets,prev){
 }
 function requiredForBlock(fx,b){
  const p=Math.floor(b/fx.windows), out=new Set();
+ if(b===0&&fx.captainId)out.add(fx.captainId);
  Object.entries(fx.prefs||{}).forEach(([id,r])=>{
   if(r==='start'&&b===0)out.add(id);
   if(r==='must'&&(fx.mustPeriods?.[id]||[]).includes(p))out.add(id);
@@ -2029,7 +2031,7 @@ document.addEventListener('change',e=>{
   if(a==='historyFilter'){if(el.dataset.k==='season')ui.historySeason=el.value;else ui.historyOpponent=el.value;render();return;}
   if(a==='mf'||a==='gr'){ draftField(el); if(el.dataset.k==='us'||el.dataset.k==='pid') setTimeout(renderSheet); return; }
   if(a==='mustPeriod'){const f=curFx(),id=el.dataset.id,p=+el.dataset.p;f.mustPeriods=f.mustPeriods||{};const old=f.mustPeriods[id]||[];f.mustPeriods[id]=el.checked?[...new Set([...old,p])]:old.filter(x=>x!==p);if(ruleConflicts(f).length){f.mustPeriods[id]=old;toast('Period already has maximum mandatory players');}else safeReplan(f);}
-  else if(a==='matchCaptain'){const f=curFx();f.captainId=fitIds(f).includes(el.value)?el.value:null;}
+  else if(a==='matchCaptain'){const f=curFx();f.captainId=fitIds(f).includes(el.value)?el.value:null;if(!f.match?.startedAt)safeReplan(f);}
   else if(a==='pref'){ const f=curFx(), id=el.dataset.id; f.prefs=f.prefs||{}; f.injured=(f.injured||[]).filter(x=>x!==id);
     if(el.value==='injured'){ f.injured.push(id); f.available=f.available.filter(x=>x!==id); delete f.prefs[id]; } else if(el.value==='unavailable'){f.available=f.available.filter(x=>x!==id);f.prefs[id]='unavailable';} else {if(!f.available.includes(id))f.available.push(id);if(el.value)f.prefs[id]=el.value;else delete f.prefs[id];}
     if(el.value!=='must'&&f.mustPeriods)delete f.mustPeriods[id];safeReplan(f); }
