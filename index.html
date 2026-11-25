@@ -1662,9 +1662,9 @@ const A = {
   },
   editGoalCategories(){ui.sheet={k:'goalCategories'};},
   saveGoalCategories(){
-    const own=val('categoryOwn').trim(),unallocated=val('categoryUnallocated').trim();
-    if(!/^\d+$/.test(own)||!/^\d+$/.test(unallocated)){toast('Enter non-negative whole numbers');return 'keep';}
-    const t=team();t.statsOverride={...(t.statsOverride||{}),ownGoals:Number(own),unallocatedGoals:Number(unallocated)};
+    const own=Number(val('categoryOwn').trim()||0),unallocated=Number(val('categoryUnallocated').trim()||0);
+    if(!Number.isSafeInteger(own)||own<0||!Number.isSafeInteger(unallocated)||unallocated<0){toast('Enter non-negative whole numbers');return 'keep';}
+    const t=team();t.statsOverride={...(t.statsOverride||{}),ownGoals:own,unallocatedGoals:unallocated};
     ui.sheet=null;save();toast('Goal categories saved');
   },
   toggleTrainingStats(){ui.showTrainingStats=!ui.showTrainingStats;},
