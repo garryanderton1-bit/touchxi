@@ -55,7 +55,17 @@ html{-webkit-text-size-adjust:100%}
 .score-v2 .clock{margin:2px 0;gap:8px}.score-v2 .clock .tm{font-size:36px;line-height:1}.score-v2 .ctl{margin-top:4px}.score-v2 .ctl .btn{min-height:44px;padding:8px}
 .match-more{position:relative}.match-more summary{list-style:none;cursor:pointer;min-width:44px;min-height:44px;display:grid;place-items:center;border:1px solid #ffffff55;border-radius:10px}.match-more summary::-webkit-details-marker{display:none}.match-more button{position:absolute;right:0;top:48px;z-index:5;white-space:nowrap;background:var(--surface);color:var(--fg)}
 .md .quick{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}.md .quick .btn{font-size:11px;padding:6px 2px;min-height:52px;min-width:0}.md .quick strong{font-size:18px;line-height:1.1}
-</style></head>
+</style><style id="design-d08-d19">
+.md{overscroll-behavior-y:contain;scroll-padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch}
+.md .rotation-nav .btn,.md .subrow .btn,.md .selbar .btn,.md .match-action-more .btn{min-height:44px}
+.md .subrow,.md .selbar{flex-wrap:wrap;gap:8px}
+.md .bench .bchip{overflow-wrap:anywhere;flex-wrap:wrap}
+.md .bench .bchip .pill{white-space:normal;font-size:10px}
+.md .rotation-nav .btn{min-width:0;text-align:center}
+.sheet{overscroll-behavior-y:contain;max-height:88vh;max-height:88dvh}
+@media(max-width:420px){.md .bench{grid-template-columns:repeat(2,minmax(0,1fr))!important}.md .selbar>span{width:100%}.md .selbar .btn{flex:1}.md .subrow .btn{margin-left:auto}.md .rotation-nav .btn{padding-inline:8px}}
+</style>
+</head>
 <body>
 <style>
 /* Layout: phone-first single column, sticky team bar on top, tab bar on the bottom, full-screen matchday overlay */
